@@ -10,14 +10,6 @@ chat_bp = Blueprint('chat', __name__)
 # Load messages (will be imported from app context)
 MESSAGES = None
 
-@chat_bp. route("/chat", methods=["POST"])
-def chat():
-    """Chat endpoint - processes user messages"""
-    # Note: This is a placeholder - actual logic stays in app.py for now
-    # Will be refactored in future versions
-    message = request.json.get("message", "").strip()
-    
-    if not message:
-        return jsonify({"error": "Empty message"}), 400
-    
-    return jsonify({"status": "ok"})
+# NOTE: The main /chat route is handled in app.py for now
+# This blueprint is reserved for future refactoring of chat logic
+
