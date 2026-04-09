@@ -348,7 +348,9 @@ async function refreshInfos() {
 }
 
 refreshInfos();
-setInterval(refreshInfos, 1000);
+// Poll every 2 seconds instead of 1 second to reduce database load
+// The API response is cached for 2 seconds server-side
+setInterval(refreshInfos, 2000);
 
 /* popup chatbot */
 const popup = document.getElementById("chatbot-popup");

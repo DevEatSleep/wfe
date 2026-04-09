@@ -3,9 +3,14 @@ from psycopg2 import sql
 import os
 import re
 from urllib.parse import urlparse
+from functools import lru_cache
 
 # Database connection URL (set DATABASE_URL in environment for Render)
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://localhost/financier')
+
+# Simple cache to avoid repeated DB calls within a request
+_step_cache = None
+_step_cache_session_id = None
 
 def get_db_connection():
     """Create and return a database connection"""

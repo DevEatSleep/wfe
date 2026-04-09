@@ -473,23 +473,33 @@ def index():
 def chat():
     try:
         message = request.json.get("message", "").strip()
-        step = get_step()
+        
+        # Use session cache if available to avoid repeated get_step() calls
+        if 'current_step' in session:
+            step = session['current_step']
+        else:
+            step = get_step()
+            session['current_step'] = step
+        
         intent = detect_intent(message, INTENTS)
 
         # Handle reset intent first, with high priority
         if intent == "reset":
             reset_db()
+            session['current_step'] = "prenom_femme"
             set_step("prenom_femme")
             return reply_json(MESSAGES["reset"] + "<br>" + get_current_question("prenom_femme"))
 
         # Handle completed state
         if step == "completed":
             result = step_completed(message)
+            session['current_step'] = result.next_step
             set_step(result.next_step)
             return reply_json(result.reply)
 
         # Initialize if no step is set
         if step is None:
+            session['current_step'] = "prenom_femme"
             set_step("prenom_femme")
             return reply_json(MESSAGES["welcome_base"] + "<br>" + get_current_question("prenom_femme"))
 
@@ -500,6 +510,8 @@ def chat():
             # Handle other steps
             result = STATE_HANDLERS[step](message)
 
+        # Update session cache with new step
+        session['current_step'] = result.next_step
         set_step(result.next_step)
         return reply_json(result.reply)
     except Exception as e:
