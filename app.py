@@ -30,7 +30,13 @@ app.register_blueprint(pages_bp)
 app.register_blueprint(api_bp)
 app.register_blueprint(chat_bp)
 
-init_db()
+# Initialize database with error handling
+try:
+    init_db()
+except Exception as e:
+    print(f"WARNING: Database initialization failed: {e}")
+    print(f"DATABASE_URL is set: {bool(os.getenv('DATABASE_URL'))}")
+    print("The app will still start but /chat endpoint may fail until DATABASE_URL is configured.")
 
 # -------- DATA --------
 with open("data/messages.json", "r", encoding="utf-8") as f:
@@ -465,36 +471,42 @@ def index():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    message = request.json.get("message", "").strip()
-    step = get_step()
-    intent = detect_intent(message, INTENTS)
+    try:
+        message = request.json.get("message", "").strip()
+        step = get_step()
+        intent = detect_intent(message, INTENTS)
 
-    # Handle reset intent first, with high priority
-    if intent == "reset":
-        reset_db()
-        set_step("prenom_femme")
-        return reply_json(MESSAGES["reset"] + "<br>" + get_current_question("prenom_femme"))
+        # Handle reset intent first, with high priority
+        if intent == "reset":
+            reset_db()
+            set_step("prenom_femme")
+            return reply_json(MESSAGES["reset"] + "<br>" + get_current_question("prenom_femme"))
 
-    # Handle completed state
-    if step == "completed":
-        result = step_completed(message)
+        # Handle completed state
+        if step == "completed":
+            result = step_completed(message)
+            set_step(result.next_step)
+            return reply_json(result.reply)
+
+        # Initialize if no step is set
+        if step is None:
+            set_step("prenom_femme")
+            return reply_json(MESSAGES["welcome_base"] + "<br>" + get_current_question("prenom_femme"))
+
+        # Handle housework hours steps
+        if step.startswith("heures_"):
+            result = step_donnees_insee(message, step)
+        else:
+            # Handle other steps
+            result = STATE_HANDLERS[step](message)
+
         set_step(result.next_step)
         return reply_json(result.reply)
-
-    # Initialize if no step is set
-    if step is None:
-        set_step("prenom_femme")
-        return reply_json(MESSAGES["welcome_base"] + "<br>" + get_current_question("prenom_femme"))
-
-    # Handle housework hours steps
-    if step.startswith("heures_"):
-        result = step_donnees_insee(message, step)
-    else:
-        # Handle other steps
-        result = STATE_HANDLERS[step](message)
-
-    set_step(result.next_step)
-    return reply_json(result.reply)
+    except Exception as e:
+        print(f"ERROR in /chat endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        return reply_json(f"Erreur serveur: {str(e)[:100]}")
 
 @app.route("/chatbot")
 def chatbot_page():

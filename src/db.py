@@ -10,9 +10,15 @@ DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://localhost/financier')
 def get_db_connection():
     """Create and return a database connection"""
     try:
-        return psycopg2.connect(DATABASE_URL)
+        url = os.getenv('DATABASE_URL')
+        if not url:
+            raise ValueError("DATABASE_URL environment variable is not set")
+        return psycopg2.connect(url)
     except psycopg2.Error as e:
         print(f"Database connection error: {e}")
+        raise
+    except ValueError as e:
+        print(f"Configuration error: {e}")
         raise
 
 # -------- INITIALISATION DE LA BASE --------
