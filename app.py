@@ -10,55 +10,31 @@ load_dotenv()
 APP_VERSION = "0.1"
 APP_AUTHOR = "Thierry Verdier"
 
-from db import (
+from src.db import (
     init_db, get_revenus, set_revenu, add_depense, get_depenses,
     get_depenses_with_payeur, get_step, set_step, reset_db, set_personne, get_personnes, get_age,
     get_categories_domestiques, get_travail_domestique,
     get_estimation_insee, insert_travail_domestique_user,
     get_tranche_age_for_age, save_session_to_db, get_session_data, set_session_data
 )
-from intents import INTENTS
-from state_result import StateResult
+from src.intents import INTENTS
+from src.state_result import StateResult
+from src.utils.helpers import detect_intent, normaliser, extraire_depense, reply_json
+from src.routes import chat_bp, api_bp, pages_bp
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Register blueprints
+app.register_blueprint(pages_bp)
+app.register_blueprint(api_bp)
+app.register_blueprint(chat_bp)
+
 init_db()
 
 # -------- DATA --------
 with open("data/messages.json", "r", encoding="utf-8") as f:
     MESSAGES = json.load(f)
-
-# -------- UTILITAIRES --------
-def reply_json(text):
-    return jsonify({"reply": text})
-
-def normaliser(message):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', message)
-        if unicodedata.category(c) != 'Mn'
-    ).lower()
-
-def detect_intent(message, intents):
-    msg = message.lower()
-    for intent, data in intents.items():
-        if any(v in msg for v in data.get("verbs", [])):
-            return intent
-        if any(k in msg for k in data.get("keywords", [])):
-            return intent
-    return None
-
-def extraire_depense(message):
-    msg = message.lower()
-    match = re.search(r'(\d+(?:[.,]\d+)?)', msg)
-    montant = float(match.group(1).replace(',', '.')) if match else 0
-
-    description = re.sub(
-        r'\d+(?:[.,]\d+)?\s*(€|euros?)?', '',
-        msg, flags=re.IGNORECASE
-    ).strip()
-
-    description = re.sub(r"\s+", " ", description)
-    return montant, description or "autre"
 
 def calculer_part():
     revenus = get_revenus() or {}
