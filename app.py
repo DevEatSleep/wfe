@@ -128,9 +128,47 @@ def session_get_personnes():
     # Fallback to database if not in session
     return get_personnes() or {}
 
+def session_get_revenus():
+    """Get revenue data from session, fallback to database"""
+    if 'revenus' in session:
+        return session['revenus']
+    return get_revenus() or {}
+
+def session_get_depenses():
+    """Get simple depenses dict from session or database"""
+    if 'depenses' in session:
+        # Convert list format to dict format for backwards compatibility
+        result = {}
+        for i, depense in enumerate(session['depenses']):
+            result[f"depense_{i}"] = depense['montant']
+        return result
+    return get_depenses() or {}
+
+def session_get_depenses_with_payeur():
+    """Get depenses with payeur info from session or database"""
+    if 'depenses' in session:
+        # Convert session format to depenses_with_payeur format
+        return [(d['description'], d['montant'], d['payeur']) for d in session['depenses']]
+    return get_depenses_with_payeur() or []
+
+def session_get_travail_domestique():
+    """Get domestic work data from session or database"""
+    if 'travail_domestique_full' in session:
+        # Convert list format back to dict format
+        result = {}
+        for record in session['travail_domestique_full']:
+            activite = record['activite']
+            sexe = record['sexe']
+            if activite not in result:
+                result[activite] = {}
+            result[activite][sexe] = record['heures_semaine']
+        return result
+    return get_travail_domestique() or {}
+
 # -------- CALCULATOR FUNCTIONS --------
-    revenus = get_revenus() or {}
-    depenses = get_depenses() or {}
+def calculer_part():
+    revenus = session_get_revenus()
+    depenses = session_get_depenses()
 
     rh = revenus.get("homme", 0)
     rf = revenus.get("femme", 0)
@@ -148,9 +186,9 @@ def session_get_personnes():
 
 def calculer_equite():
     """Calcule l'indice d'équité entre les deux partenaires."""
-    revenus = get_revenus() or {}
-    travail_user = get_travail_domestique() or {}
-    depenses_with_payeur = get_depenses_with_payeur() or []
+    revenus = session_get_revenus()
+    travail_user = session_get_travail_domestique()
+    depenses_with_payeur = session_get_depenses_with_payeur()
     
     # Vérifier s'il y a suffisamment de données
     total_revenu = sum(revenus.values()) if revenus else 0
@@ -268,7 +306,7 @@ def get_interpretation_equite(score, charge_h, charge_f, travail_h, travail_f):
 
 # -------- QUESTIONS --------
 def get_current_question(step):
-    personnes = get_personnes() or {}
+    personnes = session_get_personnes()
     femme = personnes.get("femme", {})
     homme = personnes.get("homme", {})
 

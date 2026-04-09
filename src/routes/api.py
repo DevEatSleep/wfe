@@ -14,6 +14,40 @@ _bilan_cache = None
 _bilan_cache_time = None
 BILAN_CACHE_DURATION = 2  # seconds
 
+# Session-aware getters (same as in app.py)
+def session_get_personnes():
+    """Get person data from session, fallback to database if not in session"""
+    if 'personnes' in session:
+        return session['personnes']
+    return get_personnes() or {}
+
+def session_get_revenus():
+    """Get revenue data from session, fallback to database"""
+    if 'revenus' in session:
+        return session['revenus']
+    return get_revenus() or {}
+
+def session_get_depenses_with_payeur():
+    """Get depenses with payeur info from session or database"""
+    if 'depenses' in session:
+        # Convert session format to depenses_with_payeur format
+        return [(d['description'], d['montant'], d['payeur']) for d in session['depenses']]
+    return get_depenses_with_payeur() or []
+
+def session_get_travail_domestique():
+    """Get domestic work data from session or database"""
+    if 'travail_domestique_full' in session:
+        # Convert list format back to dict format
+        result = {}
+        for record in session['travail_domestique_full']:
+            activite = record['activite']
+            sexe = record['sexe']
+            if activite not in result:
+                result[activite] = {}
+            result[activite][sexe] = record['heures_semaine']
+        return result
+    return get_travail_domestique() or {}
+
 def get_bilan_cached():
     """Get bilan with 2-second caching to reduce database queries"""
     global _bilan_cache, _bilan_cache_time
@@ -23,11 +57,11 @@ def get_bilan_cached():
     if _bilan_cache and _bilan_cache_time and (now - _bilan_cache_time).total_seconds() < BILAN_CACHE_DURATION:
         return _bilan_cache
     
-    # Query database and cache the result
-    revenus = get_revenus() or {}
-    depenses_details = get_depenses_with_payeur()
-    personnes = get_personnes() or {}
-    travail_user = get_travail_domestique() or {}
+    # Query session first, then fallback to database
+    revenus = session_get_revenus()
+    depenses_details = session_get_depenses_with_payeur()
+    personnes = session_get_personnes()
+    travail_user = session_get_travail_domestique()
     
     total_depenses = sum([mont for _, mont, _ in depenses_details]) if depenses_details else 0
     
