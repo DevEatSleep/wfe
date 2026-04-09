@@ -1,5 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import re, unicodedata, json
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 # -------- APP VERSION & METADATA --------
 APP_VERSION = "0.1"

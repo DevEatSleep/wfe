@@ -44,7 +44,7 @@ git push -u origin main
 
 | Setting | Value |
 |---------|-------|
-| **Name** | `assistant-financier` (or your choice) |
+| **Name** | `wfe` |
 | **Environment** | `Python 3` |
 | **Build Command** | `pip install -r requirements.txt` |
 | **Start Command** | `gunicorn app:app` |
@@ -54,19 +54,43 @@ git push -u origin main
 
 ---
 
-## **Step 4: Wait for Deployment**
+## **Step 4: Create PostgreSQL Database**
 
-- Render will automatically build and deploy
-- Watch the logs scroll in real-time
-- ✅ When you see **"Service is live"** → Done!
-
-**Your app is now live at:** `https://assistant-financier.onrender.com`
+1. Dashboard → **"New +"** → **"PostgreSQL"**
+2. Fill in:
+   - **Name:** `wfe`
+   - **Database:** `wfe`
+3. Click **"Create Database"**
+4. Wait 2-3 minutes
+5. **Copy the DATABASE_URL** from the database page
 
 ---
 
-## **Step 5: Test Your PWA**
+## **Step 5: Connect Database to Web Service**
 
-1. Open `https://assistant-financier.onrender.com` in browser
+1. Go to your Web Service (`wfe`)
+2. Click **"Settings"**
+3. Scroll to **"Environment"**
+4. Add new variable:
+   - **Key:** `DATABASE_URL`
+   - **Value:** Paste the DATABASE_URL from your PostgreSQL
+5. Click **"Save"**
+6. Render auto-redeploys (~2 minutes)
+
+---
+
+## **Step 6: Wait for Deployment**
+
+- Watch the logs scroll in real-time
+- ✅ When you see **"Service is live"** → Done!
+
+**Your app is now live at:** `https://wfe.onrender.com`
+
+---
+
+## **Step 7: Test Your PWA**
+
+1. Open `https://wfe.onrender.com` in browser
 2. Verify it works (may take ~48s on first load)
 3. Install as PWA:
    - Click install icon (⬇️) in address bar
@@ -112,10 +136,10 @@ Your app has been migrated to PostgreSQL! Here's how to use it:
 ```bash
 # 1. Install PostgreSQL from postgresql.org
 # 2. Create a new database
-createdb financier
+psql -U postgres -c "CREATE DATABASE wfe"
 
 # 3. Create .env file with:
-DATABASE_URL=postgresql://localhost/financier
+DATABASE_URL=postgresql://localhost/wfe
 
 # 4. Install packages
 pip install -r requirements.txt
@@ -127,12 +151,12 @@ python app.py
 ### **Render Deployment**
 ```bash
 # 1. Dashboard → New + → PostgreSQL
-# 2. Name it: "assistant-financier-db" (free tier)
+# 2. Name: "wfe", Database: "wfe" (free tier)
 # 3. Wait for creation (2-3 minutes)
-# 4. Copy the DATABASE_URL from the database dashboard
-# 5. Go to your Web Service → Settings → Environment Variables
+# 4. Copy the DATABASE_URL
+# 5. Go to Web Service (wfe) → Settings → Environment Variables
 # 6. Add: DATABASE_URL = (paste the copied URL)
-# 7. Redeploy your Web Service
+# 7. Render auto-redeploys your service
 ```
 
 **Your data will now persist forever!** ✨
