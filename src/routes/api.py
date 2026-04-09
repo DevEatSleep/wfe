@@ -14,28 +14,28 @@ _bilan_cache = None
 _bilan_cache_time = None
 BILAN_CACHE_DURATION = 2  # seconds
 
-# Session-aware getters (same as in app.py)
+# Session-only getters (NO database fallback - dashboard reads ONLY from active chat session)
 def session_get_personnes():
-    """Get person data from session, fallback to database if not in session"""
+    """Get person data from session ONLY (no database fallback)"""
     if 'personnes' in session:
         return session['personnes']
-    return get_personnes() or {}
+    return {}
 
 def session_get_revenus():
-    """Get revenue data from session, fallback to database"""
+    """Get revenue data from session ONLY (no database fallback)"""
     if 'revenus' in session:
         return session['revenus']
-    return get_revenus() or {}
+    return {}
 
 def session_get_depenses_with_payeur():
-    """Get depenses with payeur info from session or database"""
+    """Get depenses with payeur info from session ONLY (no database fallback)"""
     if 'depenses' in session:
         # Convert session format to depenses_with_payeur format
         return [(d['description'], d['montant'], d['payeur']) for d in session['depenses']]
-    return get_depenses_with_payeur() or []
+    return []
 
 def session_get_travail_domestique():
-    """Get domestic work data from session or database"""
+    """Get domestic work data from session ONLY (no database fallback)"""
     if 'travail_domestique_full' in session:
         # Convert list format back to dict format
         result = {}
@@ -46,18 +46,14 @@ def session_get_travail_domestique():
                 result[activite] = {}
             result[activite][sexe] = record['heures_semaine']
         return result
-    return get_travail_domestique() or {}
+    return {}
 
 def get_bilan_cached():
-    """Get bilan with 2-second caching to reduce database queries"""
+    """Get bilan without caching to ensure real-time updates from session"""
     global _bilan_cache, _bilan_cache_time
     
-    now = datetime.now()
-    # Return cached result if still valid
-    if _bilan_cache and _bilan_cache_time and (now - _bilan_cache_time).total_seconds() < BILAN_CACHE_DURATION:
-        return _bilan_cache
-    
-    # Query session first, then fallback to database
+    # Always fetch fresh session data - no caching for instant updates
+    # Query session ONLY, no database fallback during active chat
     revenus = session_get_revenus()
     depenses_details = session_get_depenses_with_payeur()
     personnes = session_get_personnes()

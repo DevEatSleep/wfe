@@ -122,37 +122,36 @@ def save_session_data_to_db():
         return False
 
 def session_get_personnes():
-    """Get person data from session, fallback to database if not in session"""
+    """Get person data from session ONLY (no database fallback)"""
     if 'personnes' in session:
         return session['personnes']
-    # Fallback to database if not in session
-    return get_personnes() or {}
+    return {}
 
 def session_get_revenus():
-    """Get revenue data from session, fallback to database"""
+    """Get revenue data from session ONLY (no database fallback)"""
     if 'revenus' in session:
         return session['revenus']
-    return get_revenus() or {}
+    return {}
 
 def session_get_depenses():
-    """Get simple depenses dict from session or database"""
+    """Get simple depenses dict from session only"""
     if 'depenses' in session:
         # Convert list format to dict format for backwards compatibility
         result = {}
         for i, depense in enumerate(session['depenses']):
             result[f"depense_{i}"] = depense['montant']
         return result
-    return get_depenses() or {}
+    return {}
 
 def session_get_depenses_with_payeur():
-    """Get depenses with payeur info from session or database"""
+    """Get depenses with payeur info from session ONLY (no database fallback)"""
     if 'depenses' in session:
         # Convert session format to depenses_with_payeur format
         return [(d['description'], d['montant'], d['payeur']) for d in session['depenses']]
-    return get_depenses_with_payeur() or []
+    return []
 
 def session_get_travail_domestique():
-    """Get domestic work data from session or database"""
+    """Get domestic work data from session ONLY (no database fallback)"""
     if 'travail_domestique_full' in session:
         # Convert list format back to dict format
         result = {}
@@ -163,7 +162,7 @@ def session_get_travail_domestique():
                 result[activite] = {}
             result[activite][sexe] = record['heures_semaine']
         return result
-    return get_travail_domestique() or {}
+    return {}
 
 # -------- CALCULATOR FUNCTIONS --------
 def calculer_part():

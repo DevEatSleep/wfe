@@ -348,9 +348,9 @@ async function refreshInfos() {
 }
 
 refreshInfos();
-// Poll every 2 seconds instead of 1 second to reduce database load
-// The API response is cached for 2 seconds server-side
-setInterval(refreshInfos, 2000);
+// Poll every 500ms for instant updates from session (no database overhead)
+// Dashboard now reads ONLY from active chat session, not from database
+setInterval(refreshInfos, 500);
 
 /* popup chatbot */
 const popup = document.getElementById("chatbot-popup");
