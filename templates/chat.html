@@ -48,12 +48,22 @@
             },
             body: JSON.stringify({ message })
         })
-        .then(response => response.json())
-        .then(data => {
-            const botReply = data.reply;
-            addMessage('bot', botReply); // Afficher la réponse du chatbot
+        .then(response => {
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return response.json();
         })
-        .catch(error => console.error('Erreur:', error));
+        .then(data => {
+            if (data && data.reply) {
+                addMessage('bot', data.reply); // Afficher la réponse du chatbot
+            } else {
+                console.error('Invalid response structure:', data);
+                addMessage('bot', 'Erreur: Pas de réponse du serveur.');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            addMessage('bot', 'Erreur: Impossible de communiquer avec le serveur.');
+        });
 
         // Effacer le champ de saisie après envoi
         document.getElementById('user-message').value = '';
@@ -95,12 +105,22 @@
             },
             body: JSON.stringify({ message: "" })  // Envoi d'un message vide pour déclencher le processus
         })
-        .then(response => response.json())
-        .then(data => {
-            const botReply = data.reply;
-            addMessage('bot', botReply); // Afficher la réponse du chatbot (le message de bienvenue)
+        .then(response => {
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return response.json();
         })
-        .catch(error => console.error('Erreur:', error));
+        .then(data => {
+            if (data && data.reply) {
+                addMessage('bot', data.reply); // Afficher la réponse du chatbot (le message de bienvenue)
+            } else {
+                console.error('Invalid response structure:', data);
+                addMessage('bot', 'Erreur: Le chatbot n\'a pas pu démarrer correctement.');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement:', error);
+            addMessage('bot', 'Erreur: Impossible de se connecter au serveur.');
+        });
     };
 
     document.getElementById('send-btn').addEventListener('click', sendMessage);
