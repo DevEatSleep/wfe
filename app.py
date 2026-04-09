@@ -42,7 +42,93 @@ except Exception as e:
 with open("data/messages.json", "r", encoding="utf-8") as f:
     MESSAGES = json.load(f)
 
-def calculer_part():
+# -------- SESSION-BASED DATA BUFFERING --------
+# Helper functions to store data in Flask session instead of directly to DB
+def session_set_personne(role, prenom=None, age=None):
+    """Store person data in session instead of database"""
+    if 'personnes' not in session:
+        session['personnes'] = {}
+    if role not in session['personnes']:
+        session['personnes'][role] = {}
+    if prenom is not None:
+        session['personnes'][role]['prenom'] = prenom
+    if age is not None:
+        session['personnes'][role]['age'] = age
+    session.modified = True
+
+def session_set_revenu(role, montant):
+    """Store revenue in session instead of database"""
+    if 'revenus' not in session:
+        session['revenus'] = {}
+    session['revenus'][role] = montant
+    session.modified = True
+
+def session_add_depense(description, montant, payeur):
+    """Store expense in session instead of database"""
+    if 'depenses' not in session:
+        session['depenses'] = []
+    session['depenses'].append({
+        'description': description,
+        'montant': montant,
+        'payeur': payeur
+    })
+    session.modified = True
+
+def session_add_travail_domestique(activite, role, heures):
+    """Store domestic work in session instead of database"""
+    if 'travail_domestique' not in session:
+        session['travail_domestique'] = {}
+    if activite not in session['travail_domestique']:
+        session['travail_domestique'][activite] = {}
+    session['travail_domestique'][activite][role] = heures
+    session.modified = True
+
+def save_session_data_to_db():
+    """Save all buffered session data to database at once"""
+    try:
+        # Save personnes
+        if 'personnes' in session:
+            for role, data in session['personnes'].items():
+                if 'prenom' in data:
+                    set_personne(role, prenom=data['prenom'])
+                if 'age' in data:
+                    set_personne(role, age=data['age'])
+        
+        # Save revenus
+        if 'revenus' in session:
+            for role, montant in session['revenus'].items():
+                set_revenu(role, montant)
+        
+        # Save depenses
+        if 'depenses' in session:
+            for depense in session['depenses']:
+                add_depense(depense['description'], depense['montant'], depense['payeur'])
+        
+        # Save travail_domestique (full records from session)
+        if 'travail_domestique_full' in session:
+            for record in session['travail_domestique_full']:
+                insert_travail_domestique_user(
+                    prenom=record['prenom'],
+                    age=record['age'],
+                    tranche_age=record['tranche_age'],
+                    sexe=record['sexe'],
+                    activite=record['activite'],
+                    heures_semaine=record['heures_semaine']
+                )
+        
+        return True
+    except Exception as e:
+        print(f"ERROR saving session data to DB: {e}")
+        return False
+
+def session_get_personnes():
+    """Get person data from session, fallback to database if not in session"""
+    if 'personnes' in session:
+        return session['personnes']
+    # Fallback to database if not in session
+    return get_personnes() or {}
+
+# -------- CALCULATOR FUNCTIONS --------
     revenus = get_revenus() or {}
     depenses = get_depenses() or {}
 
@@ -255,7 +341,7 @@ def get_progress(step):
     return None, None
 
 def step_prenom_femme(msg):
-    set_personne("femme", prenom=msg.title())
+    session_set_personne("femme", prenom=msg.title())
     return StateResult(get_current_question("age_femme"), "age_femme")
 
 def step_age_femme(msg):
@@ -265,7 +351,7 @@ def step_age_femme(msg):
     age = int(age_match.group())
     if age < 15 or age > 120:
         return StateResult("❌ L'âge doit être entre 15 et 120 ans.")
-    set_personne("femme", age=age)
+    session_set_personne("femme", age=age)
     return StateResult(get_current_question("revenu_femme"), "revenu_femme")
 
 def step_revenu_femme(msg):
@@ -274,7 +360,7 @@ def step_revenu_femme(msg):
         return StateResult(MESSAGES["revenu_err"])
     if montant > 1000000:
         return StateResult("❌ Le revenu saisi semble invalide. Veuillez réessayer.")
-    set_revenu("femme", montant)
+    session_set_revenu("femme", montant)
     return StateResult(
         MESSAGES["revenu_femme_ok"].format(montant=montant)
         + "<br>" + get_current_question("prenom_homme"),
@@ -282,7 +368,7 @@ def step_revenu_femme(msg):
     )
 
 def step_prenom_homme(msg):
-    set_personne("homme", prenom=msg.title())
+    session_set_personne("homme", prenom=msg.title())
     return StateResult(get_current_question("age_homme"), "age_homme")
 
 def step_age_homme(msg):
@@ -292,7 +378,7 @@ def step_age_homme(msg):
     age = int(age_match.group())
     if age < 15 or age > 120:
         return StateResult("❌ L'âge doit être entre 15 et 120 ans.")
-    set_personne("homme", age=age)
+    session_set_personne("homme", age=age)
     return StateResult(get_current_question("revenu_homme"), "revenu_homme")
 
 def step_revenu_homme(msg):
@@ -301,7 +387,7 @@ def step_revenu_homme(msg):
         return StateResult(MESSAGES["revenu_err"])
     if montant > 1000000:
         return StateResult("❌ Le revenu saisi semble invalide. Veuillez réessayer.")
-    set_revenu("homme", montant)
+    session_set_revenu("homme", montant)
     return StateResult(
         MESSAGES["revenu_homme_ok_next"].format(montant=montant)
         + "<br>" + get_current_question("depenses"),
@@ -332,7 +418,7 @@ def step_depenses(msg):
             montant = _depense_temp["montant"]
             desc = _depense_temp["desc"]
             
-            add_depense(desc, montant, payeur_final)
+            session_add_depense(desc, montant, payeur_final)
             _depense_temp = {}
             
             return StateResult(
@@ -378,7 +464,7 @@ def step_donnees_insee(message, step):
         return StateResult("❌ Erreur interne : étape invalide.")
 
     # --- Get current person's info ---
-    personnes = get_personnes() or {}
+    personnes = session_get_personnes()
     personne = personnes.get(genre, {}) or {}
     prenom = personne.get("prenom", "la personne")
     age = personne.get("age")
@@ -392,16 +478,19 @@ def step_donnees_insee(message, step):
     if estimation is None:
         return StateResult(f"❌ Estimation INSEE non trouvée pour {prenom} dans la tranche {tranche}. Veuillez entrer une valeur estimée.")
 
-    # --- Insert user data ---
+    # --- Insert user data to session buffer ---
     try:
-        insert_travail_domestique_user(
-            prenom=prenom,
-            age=age,
-            tranche_age=tranche,
-            sexe=genre,
-            activite=categorie,
-            heures_semaine=heures_semaine
-        )
+        if 'travail_domestique_full' not in session:
+            session['travail_domestique_full'] = []
+        session['travail_domestique_full'].append({
+            'prenom': prenom,
+            'age': age,
+            'tranche_age': tranche,
+            'sexe': genre,
+            'activite': categorie,
+            'heures_semaine': heures_semaine
+        })
+        session.modified = True
     except Exception as e:
         return StateResult(f"❌ Erreur lors de la sauvegarde : {str(e)}")
 
@@ -413,9 +502,10 @@ def step_donnees_insee(message, step):
     try:
         idx = steps.index(step)
     except ValueError:
-        # All steps completed
+        # All steps completed - save all session data to DB
+        save_session_data_to_db()
         return StateResult(
-            reply=f"{confirmation}<br><br>🎉 <strong>Félicitations !</strong> Toutes vos données ont été saisies avec succès.<br><br>📊 Vous pouvez maintenant :<br>• Consulter votre <strong>bilan détaillé</strong><br>• Taper <strong>'reset'</strong> pour recommencer avec de nouvelles données",
+            reply=f"{confirmation}<br><br>🎉 <strong>Félicitations !</strong> Toutes vos données ont été saisies avec succès et sauvegardées.<br><br>📊 Vous pouvez maintenant :<br>• Consulter votre <strong>bilan détaillé</strong><br>• Taper <strong>'reset'</strong> pour recommencer avec de nouvelles données",
             next_step="completed"
         )
 
@@ -442,14 +532,15 @@ def step_completed(msg):
     reset_keywords = {"reset", "réinitialiser", "recommencer", "nouveau", "effacer", "vider"}
     if normalized_msg in reset_keywords:
         reset_db()
+        session.clear()  # Clear buffered session data
         return StateResult(
             reply=MESSAGES["reset"] + "<br><br>" + get_current_question("prenom_femme"),
             next_step="prenom_femme"
         )
     
-    # For any other input, remind them data is ready
+    # For any other input, remind them data is ready and already saved
     return StateResult(
-        reply="✅ Vos données sont sauvegardées et prêtes à être consultées. Vous pouvez :<br>• Accéder au <strong>bilan</strong><br>• Taper <strong>'reset'</strong> pour effacer et recommencer",
+        reply="✅ Vos données ont été sauvegardées dans la base de données. Vous pouvez :<br>• Consulter le <strong>bilan</strong><br>• Taper <strong>'reset'</strong> pour effacer et recommencer",
         next_step="completed"
     )
 
@@ -486,8 +577,10 @@ def chat():
         # Handle reset intent first, with high priority
         if intent == "reset":
             reset_db()
+            # Clear all buffered session data but keep current_step
+            session.clear()
             session['current_step'] = "prenom_femme"
-            set_step("prenom_femme")
+            session.modified = True
             return reply_json(MESSAGES["reset"] + "<br>" + get_current_question("prenom_femme"))
 
         # Handle completed state
