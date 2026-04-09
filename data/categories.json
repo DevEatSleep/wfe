@@ -1,0 +1,24 @@
+{
+    "courses": ["courses", "supermarché", "épicerie", "alimentaire", "nourriture", "produits frais", "magasin"],
+    "loyer": ["loyer", "location", "appartement", "maison", "studio", "habitation"],
+    "internet": ["internet", "wifi", "fibre", "connexion", "box"],
+    "electricité": ["electricité", "edf", "énergie", "courant", "facture électricité"],
+    "eau": ["eau", "robinet", "facture eau", "suez", "veolia"],
+    "gaz": ["gaz", "chauffage gaz", "facture gaz"],
+    "transport": ["transport", "bus", "métro", "train", "tram", "ticket", "carburant", "essence", "diesel"],
+    "voiture": ["voiture", "auto", "car", "véhicule", "garage", "réparation", "assurance auto"],
+    "santé": ["santé", "médecin", "pharmacie", "ordonnance", "mutuelle", "dentiste", "hôpital"],
+    "assurance": ["assurance", "mutuelle", "contrat", "protection", "sécurité"],
+    "impôts": ["impôts", "taxes", "fisc", "impôt sur le revenu", "taxe foncière", "taxe habitation"],
+    "abonnements": ["abonnements", "netflix", "spotify", "prime", "canal+", "disney+", "abonnement"],
+    "téléphone": ["téléphone", "mobile", "forfait", "gsm", "smartphone"],
+    "loisirs": ["loisirs", "cinéma", "concert", "spectacle", "musée", "sortie", "jeu", "gaming"],
+    "vacances": ["vacances", "voyage", "séjour", "hôtel", "billet avion", "tourisme"],
+    "restaurant": ["restaurant", "resto", "repas", "dîner", "déjeuner", "brasserie", "pizzeria"],
+    "habillement": ["habillement", "vêtements", "chaussures", "mode", "shopping", "textile"],
+    "cadeaux": ["cadeaux", "présent", "anniversaire", "noël", "offrir"],
+    "éducation": ["éducation", "école", "université", "formation", "cours", "livres", "scolarité"],
+    "animaux": ["animaux", "chien", "chat", "vétérinaire", "croquettes", "animalerie"],
+    "divers": ["divers", "autre", "inconnu", "misc", "non classé"]
+  }
+  

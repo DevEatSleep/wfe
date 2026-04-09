@@ -1,0 +1,32 @@
+INTENTS = {
+    "add_depense": {
+        "verbs": [
+            "ajouter", "ajoute", "payer", "acheter", "dépenser", "sortir", "investir"
+        ],
+        "keywords": [
+            "dépense", "courses", "loyer", "facture", "restaurant", "resto",
+            "transport", "essence", "carburant", "électricité", "eau", "internet",
+            "abonnement", "cinéma", "vacances", "shopping", "achat", "charge"
+        ],
+        "entities": ["MONEY"]
+    },
+    "update_revenu": {
+        "verbs": [
+            "modifier", "changer", "mettre", "ajouter", "déclarer", "indiquer"
+        ],
+        "keywords": [
+            "revenu", "salaire", "gain", "paie", "prime", "rentrée d'argent"
+        ],
+        "entities": ["MONEY"]
+    },    
+    "reset": {
+        "keywords": [
+            "reset", "réinitialiser", "effacer", "vider", "recommencer", "nouveau départ"
+        ]
+    },
+    "help": {
+        "keywords": [
+            "aide", "help", "comment", "instructions", "guide", "expliquer", "utiliser"
+        ]
+    }
+}

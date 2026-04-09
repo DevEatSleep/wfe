@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4CAF50">
+    <meta name="description" content="Analyse l'équité financière et domestique dans les couples">
+    <meta name="author" content="Thierry Verdier">
+    <meta name="version" content="0.1">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.svg') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
+    <title>Tableau de bord</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <style>
+        .equity-score {
+            padding: 20px;
+            border-radius: 8px;
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            border-top: 4px solid rgba(0,0,0,0.2);
+        }
+        .score-value {
+            font-size: 56px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .score-interpretation {
+            font-size: 18px;
+            margin: 0;
+        }
+        .hr-section { margin: 30px 0; }
+    </style>
+</head>
+<body>
+
+<h1>💰 Tableau de bord des finances</h1>
+<div id="infos">Chargement des données...</div>
+
+<div class="charts">
+    <canvas id="chartRevenus"></canvas>
+    <canvas id="chartCategories"></canvas>
+</div>
+
+<!-- Bouton et popup chatbot -->
+<div id="chatbot-button">💬</div>
+<div id="chatbot-popup">
+    <iframe src="/chatbot" width="100%" height="100%" frameborder="0"></iframe>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let chartR = null;
+let chartC = null;
+
+let oldData = { revenus: null, depenses: null };
+
+function dataChanged(a, b) {
+    return JSON.stringify(a) !== JSON.stringify(b);
+}
+
+async function refreshInfos() {
+    try {
+        const res = await fetch("/api/bilan");
+        const data = await res.json();
+
+        const revenus = data.revenus || {};
+        const depenses = data.depenses || {};
+        const personnes = data.personnes || {};
+        const contribution = data.contribution || {};
+        const travail = data.travail_domestique || [];
+        const equite = data.equite || {};
+
+        /* ======================= ANALYSE D'ÉQUITÉ ======================= */
+        let equiteHtml = '';
+        
+        if (equite.non_calculé) {
+            // Pas assez de données
+            equiteHtml = `
+                <div class="equity-score" style="background: linear-gradient(135deg, #999999dd 0%, #999999 100%); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                    <h2 style="margin: 0; font-size: 28px;">📊 Score d'Équité</h2>
+                    <div class="score-value" style="color: #ccc;">Non calculé</div>
+                    <p class="score-interpretation" style="color: #f0f0f0;">${equite.interpretation}</p>
+                    <p style="font-size: 14px; margin: 12px 0 0 0; font-style: italic; opacity: 0.95;">
+                        ⏳ Veuillez compléter le questionnaire pour afficher le score.
+                    </p>
+                </div>
+            `;
+        } else {
+            // Score calculé
+            const scoreColor = equite.score_equite ? (equite.score_equite >= 85 ? '#4CAF50' : 
+                              equite.score_equite >= 70 ? '#FFB366' : '#FF6B6B') : '#999';
+            
+            equiteHtml = `
+                <div class="equity-score" style="background: linear-gradient(135deg, ${scoreColor}dd 0%, ${scoreColor} 100%); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                    <h2 style="margin: 0; font-size: 28px;">📊 Score d'Équité</h2>
+                    <div class="score-value">${equite.score_equite ? equite.score_equite.toFixed(2) : '--'}/100</div>
+                    <p class="score-interpretation">${equite.interpretation || 'Données insuffisantes'}</p>
+                    <p style="font-size: 14px; margin: 12px 0 0 0; font-style: italic; opacity: 0.95;">
+                        🔍 Le score compare le pourcentage de revenu + pourcentage des dépenses payées avec le pourcentage du travail domestique. 
+                        </p>
+                        <p style="font-size: 14px; margin: 12px 0 0 0; font-style: italic; opacity: 0.95;">
+                        Un score de 100 signifie que les contributions sont équilibrées. >= 85 est considéré comme bon, 70-85 comme moyen, et <70 comme déséquilibré.
+                    </p>
+                </div>
+            `;
+        }
+        
+        let infosHtml = equiteHtml;
+        
+        // Afficher le tableau comparatif seulement si le score a été calculé
+        if (!equite.non_calculé && equite.ratio_revenu) {
+            infosHtml += `
+            <h3>📈 Analyse homme-femme</h3>
+            <table>
+                <tr><th></th><th>Homme</th><th>Femme</th></tr>
+                <tr>
+                    <td><strong>% du revenu total</strong></td>
+                    <td>${(equite.ratio_revenu?.homme * 100).toFixed(2)}%</td>
+                    <td>${(equite.ratio_revenu?.femme * 100).toFixed(2)}%</td>
+                </tr>
+                <tr>
+                    <td><strong>% des dépenses payées</strong></td>
+                    <td>${(equite.ratio_depense?.homme * 100).toFixed(2)}%</td>
+                    <td>${(equite.ratio_depense?.femme * 100).toFixed(2)}%</td>
+                </tr>
+                <tr>
+                    <td><strong>% du travail domestique</strong></td>
+                    <td>${(equite.ratio_travail?.homme * 100).toFixed(2)}%</td>
+                    <td>${(equite.ratio_travail?.femme * 100).toFixed(2)}%</td>
+                </tr>
+                <tr>
+                    <td><strong>Total heures/semaine de travail domestique</strong></td>
+                    <td>${equite.heures?.homme.toFixed(2)}h</td>
+                    <td>${equite.heures?.femme.toFixed(2)}h</td>
+                </tr>
+            </table>`;
+        }
+        
+        infosHtml += `
+            <section class="hr-section">
+                <h2>Revenus</h2>
+                <table>
+                    <tr><th>Rôle</th><th>Prénom</th><th>Âge</th><th>€</th></tr>`;
+
+        /* ======================= REVENUS ======================= */
+        ["homme", "femme"].forEach(role => {
+            if (personnes[role]) {
+                infosHtml += `
+                    <tr>
+                        <td>${role}</td>
+                        <td>${personnes[role].prenom}</td>
+                        <td>${personnes[role].age}</td>
+                        <td>${(revenus[role] || 0).toFixed(2)}</td>
+                    </tr>`;
+            }
+        });
+
+        const totalRevenus = Object.values(revenus).reduce((a,b)=>a+b,0);
+        infosHtml += `
+                    <tr><td colspan="3"><b>Total</b></td><td><b>${totalRevenus.toFixed(2)}</b></td></tr>
+                </table>
+
+            <h2>Dépenses</h2>
+            <table>
+                <tr><th>Catégorie</th><th>€</th><th>Payeur</th></tr>`;
+
+        /* ======================= DÉPENSES AVEC PAYEUR ======================= */
+        let depensesHtml = "";
+        if (data.depenses_details && data.depenses_details.length > 0) {
+            depensesHtml = data.depenses_details
+                .map(([cat, mont, payeur]) => {
+                    const payeurText = payeur === "partagé" ? "👥 Partagé" : (payeur === "homme" ? "👨 Homme" : "👩 Femme");
+                    return `<tr><td>${cat}</td><td>${mont.toFixed(2)}</td><td>${payeurText}</td></tr>`;
+                })
+                .join("");
+        } else {
+            depensesHtml = "<tr><td colspan='3'>Aucune dépense</td></tr>";
+        }
+
+        const totalDepenses = data.total_depenses || 0;
+        infosHtml += depensesHtml + `
+                <tr><td></td><td><b>Total</b></td><td><b>${totalDepenses.toFixed(2)}</b></td></tr>
+            </table>
+
+            <h2>Contributions aux dépenses équitables (basées sur le revenu)</h2>
+            <table>
+                <tr><th>Rôle</th><th>Prénom</th><th>€</th></tr>`;
+
+        /* ======================= CONTRIBUTIONS ======================= */
+        ["homme","femme"].forEach(role => {
+            if (personnes[role] && contribution[role] !== undefined) {
+                infosHtml += `
+                    <tr>
+                        <td>${role}</td>
+                        <td>${personnes[role].prenom}</td>
+                        <td>${contribution[role].toFixed(2)}</td>
+                    </tr>`;
+            }
+        });
+
+        const totalContrib = Object.values(contribution).reduce((a,b)=>a+b,0);
+        infosHtml += `
+                <tr><td colspan="2"><b>Total</b></td><td><b>${totalContrib.toFixed(2)}</b></td></tr>
+            </table>
+
+            <h2>Travail domestique – Femme</h2>
+            <table>
+                <tr><th>Tâche</th><th>Heures / mois</th><th>€ / mois</th></tr>`;
+
+        /* ======================= TRAVAIL DOMESTIQUE ======================= */
+        let travailF = "", travailH = "";
+        let totalHF = 0, totalHH = 0;
+        let totalCF = 0, totalCH = 0;
+
+        const joursParMois = 30.44;
+
+        if (Object.keys(travail).length > 0) {
+            Object.entries(travail).forEach(([activite, data]) => {
+
+                const heuresMoisF = data.femme * joursParMois;
+                const heuresMoisH = data.homme * joursParMois;
+
+                const coutMoisF = data.cout_femme * joursParMois;
+                const coutMoisH = data.cout_homme * joursParMois;
+
+                if (data.femme > 0) {
+                    travailF += `
+                        <tr>
+                            <td>${activite}</td>
+                            <td>${heuresMoisF.toFixed(2)}</td>
+                            <td>${coutMoisF.toFixed(2)}</td>
+                        </tr>`;
+                    totalHF += heuresMoisF;
+                    totalCF += coutMoisF;
+                }
+
+                if (data.homme > 0) {
+                    travailH += `
+                        <tr>
+                            <td>${activite}</td>
+                            <td>${heuresMoisH.toFixed(2)}</td>
+                            <td>${coutMoisH.toFixed(2)}</td>
+                        </tr>`;
+                    totalHH += heuresMoisH;
+                    totalCH += coutMoisH;
+                }
+            });
+        } else {
+            travailF = travailH =
+                "<tr><td colspan='3'>Aucune donnée</td></tr>";
+        }
+
+        infosHtml += travailF + `
+                <tr><td><b>Total</b></td><td><b>${totalHF.toFixed(2)}</b></td><td><b>${totalCF.toFixed(2)}</b></td></tr>
+            </table>
+
+            <h2>Travail domestique – Homme</h2>
+            <table>
+                <tr><th>Tâche</th><th>Heures / mois</th><th>€ / mois</th></tr>
+                ${travailH}
+                <tr><td><b>Total</b></td><td><b>${totalHH.toFixed(2)}</b></td><td><b>${totalCH.toFixed(2)}</b></td></tr>
+            </table>
+        `;
+
+        document.getElementById("infos").innerHTML = infosHtml;
+
+        /* =======================
+           CHARTS
+        ======================= */
+        // const labelsR = [], dataR = [];
+        // const colorsR = ['#FF6384', '#36A2EB'];
+        // ["homme","femme"].forEach((r, idx) => {
+        //     if (personnes[r]) {
+        //         labelsR.push(personnes[r].prenom);
+        //         dataR.push(revenus[r] || 0);
+        //     }
+        // });
+
+        // const colorsC = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+        // const labelsC = Object.keys(depenses);
+        // const dataC = Object.values(depenses);
+
+        // if (!chartR) {
+        //     chartR = new Chart(chartRevenus, {
+        //         type: "pie",
+        //         data: { 
+        //             labels: labelsR, 
+        //             datasets: [{ 
+        //                 data: dataR,
+        //                 backgroundColor: colorsR.slice(0, labelsR.length),
+        //                 borderColor: '#fff',
+        //                 borderWidth: 2
+        //             }] 
+        //         },
+        //         options: {
+        //             responsive: true,
+        //             plugins: {
+        //                 legend: { position: 'bottom' }
+        //             }
+        //         }
+        //     });
+        // } else if (dataChanged(oldData.revenus, revenus)) {
+        //     chartR.data.labels = labelsR;
+        //     chartR.data.datasets[0].data = dataR;
+        //     chartR.data.datasets[0].backgroundColor = colorsR.slice(0, labelsR.length);
+        //     chartR.update();
+        // }
+
+        // if (!chartC) {
+        //     chartC = new Chart(chartCategories, {
+        //         type: "pie",
+        //         data: {
+        //             labels: labelsC,
+        //             datasets: [{ 
+        //                 data: dataC,
+        //                 backgroundColor: colorsC.slice(0, labelsC.length),
+        //                 borderColor: '#fff',
+        //                 borderWidth: 2
+        //             }]
+        //         },
+        //         options: {
+        //             responsive: true,
+        //             plugins: {
+        //                 legend: { position: 'bottom' }
+        //             }
+        //         }
+        //     });
+        // } else if (dataChanged(oldData.depenses, depenses)) {
+        //     chartC.data.labels = labelsC;
+        //     chartC.data.datasets[0].data = dataC;
+        //     chartC.data.datasets[0].backgroundColor = colorsC.slice(0, labelsC.length);
+        //     chartC.update();
+        // }
+
+        oldData.revenus = revenus;
+        oldData.depenses = depenses;
+
+    } catch (e) {
+        document.getElementById("infos").innerHTML =
+            "<p style='color:red'>Erreur de chargement</p>";
+        console.error(e);
+    }
+}
+
+refreshInfos();
+setInterval(refreshInfos, 1000);
+
+/* popup chatbot */
+const popup = document.getElementById("chatbot-popup");
+document.getElementById("chatbot-button").onclick = () =>
+    popup.style.display = popup.style.display === "block" ? "none" : "block";
+
+// Enregistrer le Service Worker pour PWA
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('{{ url_for("static", filename="service-worker.js") }}')
+        .then(registration => {
+            console.log('Service Worker enregistré:', registration);
+        })
+        .catch(error => {
+            console.error('Erreur lors de l\'enregistrement du Service Worker:', error);
+        });
+}
+</script>
+
+</body>
+</html>

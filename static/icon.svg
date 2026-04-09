@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2E7D32;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="2" dy="4" stdDeviation="3" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="url(#gradient)"/>
+  
+  <!-- Balance scale (representing fairness) -->
+  <g filter="url(#shadow)">
+    <!-- Main beam -->
+    <rect x="120" y="220" width="272" height="12" rx="6" fill="white" opacity="0.95"/>
+    
+    <!-- Left pan -->
+    <rect x="140" y="240" width="60" height="50" rx="4" fill="white" opacity="0.9"/>
+    <line x1="150" y1="240" x2="130" y2="200" stroke="white" stroke-width="3" opacity="0.8"/>
+    <line x1="190" y1="240" x2="170" y2="200" stroke="white" stroke-width="3" opacity="0.8"/>
+    
+    <!-- Right pan -->
+    <rect x="312" y="240" width="60" height="50" rx="4" fill="white" opacity="0.9"/>
+    <line x1="322" y1="240" x2="302" y2="200" stroke="white" stroke-width="3" opacity="0.8"/>
+    <line x1="362" y1="240" x2="382" y2="200" stroke="white" stroke-width="3" opacity="0.8"/>
+    
+    <!-- Fulcrum -->
+    <polygon points="256,220 240,260 272,260" fill="white" opacity="0.95"/>
+    
+    <!-- Symbols on pans -->
+    <!-- Left: Woman symbol -->
+    <g transform="translate(170, 255)">
+      <circle cx="0" cy="-5" r="8" fill="#FF6B9D" opacity="0.9"/>
+      <path d="M -6 5 Q -6 12 0 12 Q 6 12 6 5 L 4 0 L -4 0 Z" fill="#FF6B9D" opacity="0.9"/>
+    </g>
+    
+    <!-- Right: Man symbol -->
+    <g transform="translate(342, 255)">
+      <circle cx="0" cy="-5" r="8" fill="#4A90E2" opacity="0.9"/>
+      <path d="M -4 5 L -6 12 L -3 12 L -2 7 L 2 7 L 3 12 L 6 12 L 4 5 Z" fill="#4A90E2" opacity="0.9"/>
+    </g>
+  </g>
+  
+  <!-- Coins/Money symbols -->
+  <g filter="url(#shadow)">
+    <!-- Left coin -->
+    <circle cx="120" cy="360" r="18" fill="white" opacity="0.85"/>
+    <circle cx="120" cy="360" r="14" fill="none" stroke="#FFD700" stroke-width="2" opacity="0.9"/>
+    <text x="120" y="367" font-size="18" fill="#FFD700" text-anchor="middle" font-weight="bold">€</text>
+    
+    <!-- Center coin -->
+    <circle cx="256" cy="380" r="20" fill="white" opacity="0.9"/>
+    <circle cx="256" cy="380" r="16" fill="none" stroke="#FFD700" stroke-width="2" opacity="0.9"/>
+    <text x="256" y="388" font-size="22" fill="#FFD700" text-anchor="middle" font-weight="bold">€</text>
+    
+    <!-- Right coin -->
+    <circle cx="392" cy="360" r="18" fill="white" opacity="0.85"/>
+    <circle cx="392" cy="360" r="14" fill="none" stroke="#FFD700" stroke-width="2" opacity="0.9"/>
+    <text x="392" y="367" font-size="18" fill="#FFD700" text-anchor="middle" font-weight="bold">€</text>
+  </g>
+  
+  <!-- Equals sign (representing balance) -->
+  <g>
+    <line x1="200" y1="310" x2="312" y2="310" stroke="white" stroke-width="4" opacity="0.8" stroke-linecap="round"/>
+    <line x1="200" y1="330" x2="312" y2="330" stroke="white" stroke-width="4" opacity="0.8" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Decorative checkmark -->
+  <g transform="translate(430, 80)">
+    <circle cx="0" cy="0" r="24" fill="white" opacity="0.95"/>
+    <path d="M -8 0 L -2 6 L 8 -4" stroke="#4CAF50" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

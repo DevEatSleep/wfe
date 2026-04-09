@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4CAF50">
+    <meta name="description" content="Analyse l'équité financière et domestique dans les couples">
+    <meta name="author" content="Thierry Verdier">
+    <meta name="version" content="0.1">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.svg') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
+    <title>Chatbot Assistant Financier</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot.css') }}">
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">
+        Assistant Financier
+    </div>
+    <div class="chat-messages" id="chat-messages">
+        <!-- Messages du chatbot seront affichés ici -->
+    </div>
+    <div class="chat-input">
+        <input type="text" id="user-message" placeholder="Tapez votre message...">
+        <button id="send-btn">Envoyer</button>
+    </div>
+</div>
+
+<script>
+    // Fonction pour envoyer un message à Flask et afficher la réponse du bot
+    const sendMessage = () => {
+        const message = document.getElementById('user-message').value;
+        if (!message.trim()) return; // Ne pas envoyer un message vide
+
+        // Afficher le message de l'utilisateur dans le chat
+        addMessage('user', message);
+
+        // Envoyer le message à l'API Flask
+        fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const botReply = data.reply;
+            addMessage('bot', botReply); // Afficher la réponse du chatbot
+        })
+        .catch(error => console.error('Erreur:', error));
+
+        // Effacer le champ de saisie après envoi
+        document.getElementById('user-message').value = '';
+    };
+
+    // Fonction pour ajouter un message à l'écran
+    const addMessage = (sender, message) => {
+        const messageContainer = document.getElementById('chat-messages');
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', sender);
+
+        // Avatar
+        const avatar = document.createElement('div');
+        avatar.classList.add('avatar');
+        const avatarImage = document.createElement('img');
+        avatarImage.src = "{{ url_for('static', filename='avatar.png') }}"; // Chemin vers l'avatar
+        avatarImage.alt = "Avatar du bot";
+        avatar.appendChild(avatarImage);
+
+        // Bubble contenant le message
+        const bubble = document.createElement('div');
+        bubble.classList.add('bubble');
+        bubble.innerHTML = message;
+
+        messageElement.appendChild(avatar);
+        messageElement.appendChild(bubble);
+        messageContainer.appendChild(messageElement);
+
+        // Faire défiler le chat vers le bas pour afficher les derniers messages
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    };
+
+    // Lancer l'affichage du message de bienvenue immédiatement après le chargement de la page
+    window.onload = () => {
+        fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message: "" })  // Envoi d'un message vide pour déclencher le processus
+        })
+        .then(response => response.json())
+        .then(data => {
+            const botReply = data.reply;
+            addMessage('bot', botReply); // Afficher la réponse du chatbot (le message de bienvenue)
+        })
+        .catch(error => console.error('Erreur:', error));
+    };
+
+    document.getElementById('send-btn').addEventListener('click', sendMessage);
+    document.getElementById('user-message').addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+    // Enregistrer le Service Worker pour PWA
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('{{ url_for("static", filename="service-worker.js") }}')
+            .then(registration => {
+                console.log('Service Worker enregistré:', registration);
+            })
+            .catch(error => {
+                console.error('Erreur lors de l\'enregistrement du Service Worker:', error);
+            });
+    }
+</script>
+
+</body>
+</html>
