@@ -1,18 +1,8 @@
 """API routes for data endpoints"""
 from flask import Blueprint, jsonify, session
-from src.db import (
-    save_session_to_db, get_revenus, get_depenses_with_payeur,
-    get_travail_domestique, get_personnes, reset_db
-)
-from functools import lru_cache
-from datetime import datetime, timedelta
+from src.db import reset_db
 
 api_bp = Blueprint('api', __name__)
-
-# Cache the bilan response for 2 seconds to reduce DB load
-_bilan_cache = None
-_bilan_cache_time = None
-BILAN_CACHE_DURATION = 2  # seconds
 
 # Session-only getters (NO database fallback - dashboard reads ONLY from active chat session)
 def session_get_personnes():
@@ -50,8 +40,6 @@ def session_get_travail_domestique():
 
 def get_bilan_cached():
     """Get bilan without caching to ensure real-time updates from session"""
-    global _bilan_cache, _bilan_cache_time
-    
     # Always fetch fresh session data - no caching for instant updates
     # Query session ONLY, no database fallback during active chat
     revenus = session_get_revenus()
@@ -61,7 +49,7 @@ def get_bilan_cached():
     
     total_depenses = sum([mont for _, mont, _ in depenses_details]) if depenses_details else 0
     
-    _bilan_cache = {
+    return {
         "revenus": revenus,
         "depenses_details": depenses_details,
         "total_depenses": total_depenses,
@@ -69,9 +57,6 @@ def get_bilan_cached():
         "travail_domestique": travail_user,
         "status": "ok"
     }
-    _bilan_cache_time = now
-    
-    return _bilan_cache
 
 @api_bp.route("/api/save-to-db", methods=["POST"])
 def save_to_db():
