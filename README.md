@@ -2,7 +2,7 @@
 
 **Version:** 0.1  
 **Author:** Thierry Verdier  
-**Last Updated:** April 8, 2026
+**Last Updated:** April 9, 2026
 
 ## Description
 
@@ -23,11 +23,12 @@ Un assistant financier innovant qui analyse l'équité financière et domestique
 
 ## Stack Technique
 
-- **Backend:** Flask (Python 3.11+)
+- **Backend:** Flask 3.0.3 (Python 3.11+) with Blueprint-based modular architecture
 - **Frontend:** HTML5, CSS3, JavaScript (Vanilla + Chart.js)
-- **Database:** SQLite (local) / Azure SQL Database (production)
-- **Deployment:** Azure App Service / Docker
+- **Database:** PostgreSQL (via psycopg2) - persistent data with session-based buffering
+- **Deployment:** Render.com (free tier with auto-scaling)
 - **PWA:** Service Worker + Web Manifest
+- **Architecture:** Modular structure with `/src/` package for separation of concerns
 
 ## Installation Locale
 
@@ -51,9 +52,9 @@ python app.py
 # L'app est accessible à http://localhost:5000
 ```
 
-## Déploiement sur Azure
+## Déploiement sur Render
 
-Voir [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md) pour les instructions complètes.
+Voir [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) pour les instructions complètes.
 
 ## PWA Installation
 
@@ -62,23 +63,35 @@ Voir [PWA_SETUP.md](PWA_SETUP.md) pour comment installer et utiliser l'app en ta
 ## Structure du Projet
 
 ```
-├── app.py                  # Application Flask principale
-├── db.py                   # Logique de base de données
-├── intents.py              # Détection d'intents du chatbot
-├── state_result.py         # Gestion d'état des réponses
-├── requirements.txt        # Dépendances Python
+├── app.py                      # Application Flask principale (orchestration)
+├── requirements.txt            # Dépendances Python
+├── .env                        # Configuration (DATABASE_URL, SECRET_KEY)
+├── src/                        # Package principal (modular architecture)
+│   ├── __init__.py
+│   ├── db.py                  # Logique PostgreSQL + session management
+│   ├── intents.py             # Détection d'intents du chatbot
+│   ├── state_result.py        # Gestion d'état des réponses FSM
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── helpers.py         # Fonctions utilitaires (normalisation, détection d'intents)
+│   └── routes/
+│       ├── __init__.py        # Exports des blueprints
+│       ├── pages.py           # Routes HTML (/, /chatbot, /dashboard)
+│       ├── api.py             # Endpoints API (/api/save-to-db, /api/bilan, /api/reset)
+│       └── chat.py            # Chatbot message processing blueprint
 ├── templates/
-│   ├── chat.html          # Interface du chatbot
-│   └── dashboard.html     # Tableau de bord
+│   ├── chat.html              # Interface du chatbot
+│   └── dashboard.html         # Tableau de bord
 ├── static/
-│   ├── css/               # Feuilles de style
-│   ├── manifest.json      # Configuration PWA
-│   ├── service-worker.js  # Service Worker
-│   └── *.svg              # Icônes
+│   ├── css/                   # Feuilles de style
+│   ├── manifest.json          # Configuration PWA
+│   ├── service-worker.js      # Service Worker
+│   └── *.svg                  # Icônes
 ├── data/
-│   ├── messages.json      # Messages du chatbot
-│   └── categories.json    # Catégories de dépenses
-└── .github/workflows/     # GitHub Actions CI/CD
+│   ├── messages.json          # Messages du chatbot
+│   └── categories.json        # Catégories de dépenses
+└── docs/                       # Documentation
+    └── RENDER_DEPLOYMENT.md   # Guide de déploiement
 ```
 
 ## Auteur

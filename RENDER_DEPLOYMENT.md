@@ -130,7 +130,26 @@ git push origin main
 
 ## **PostgreSQL Setup (Already Configured)**
 
-Your app has been migrated to PostgreSQL! Here's how to use it:
+Your app has been migrated to PostgreSQL with a modular, blueprint-based architecture! Here's how to use it:
+
+### **Project Structure**
+```
+/src/                          # Modular application package
+  ├── db.py                   # PostgreSQL layer + session management
+  ├── intents.py              # Chatbot intent definitions
+  ├── state_result.py         # FSM state transitions
+  ├── utils/helpers.py        # Shared utility functions
+  └── routes/
+      ├── pages.py            # HTML page routes
+      ├── api.py              # RESTful API endpoints
+      └── chat.py             # Chatbot message processing
+```
+
+### **Session-Based Storage**
+The app uses a hybrid approach for reliability:
+- **In-memory buffering**: Session data cached during chat
+- **Batch saves**: All data saved to PostgreSQL at completion
+- **Tolerates poor networks**: Recovers gracefully from disconnections
 
 ### **Local Development**
 ```bash
@@ -140,6 +159,7 @@ psql -U postgres -c "CREATE DATABASE wfe"
 
 # 3. Create .env file with:
 DATABASE_URL=postgresql://localhost/wfe
+SECRET_KEY=your-secret-key
 
 # 4. Install packages
 pip install -r requirements.txt

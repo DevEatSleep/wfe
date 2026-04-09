@@ -12,7 +12,7 @@ Une PWA est une application web qui se comporte comme une application native:
 ## Installation de l'application PWA
 
 ### Sur Desktop (Windows/Mac/Linux):
-1. Accéder à l'application: `https://votre-app.azurewebsites.net`
+1. Accéder à l'application: `https://wfe.onrender.com`
 2. Cliquer sur le menu (⋮) ou l'icône d'installation
 3. Sélectionner "Installer l'application"
 4. L'app apparaît dans votre barre d'applications
