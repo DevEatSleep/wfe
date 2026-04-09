@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 import re, unicodedata, json
 import os
 from dotenv import load_dotenv
@@ -15,12 +15,13 @@ from db import (
     get_depenses_with_payeur, get_step, set_step, reset_db, set_personne, get_personnes, get_age,
     get_categories_domestiques, get_travail_domestique,
     get_estimation_insee, insert_travail_domestique_user,
-    get_tranche_age_for_age
+    get_tranche_age_for_age, save_session_to_db, get_session_data, set_session_data
 )
 from intents import INTENTS
 from state_result import StateResult
 
 app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 init_db()
 
 # -------- DATA --------
@@ -588,6 +589,16 @@ def api_bilan():
         "equite": equite,
         "reply": reply
     })
+
+@app.route("/api/save-to-db", methods=["POST"])
+def save_to_db():
+    """Save all session data to remote database in one batch"""
+    success = save_session_to_db(session)
+    if success:
+        session.clear()  # Clear session after successful save
+        return jsonify({"status": "success", "message": "Données sauvegardées avec succès!"})
+    else:
+        return jsonify({"status": "error", "message": "Erreur lors de la sauvegarde"}), 500
 
 
 

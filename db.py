@@ -17,7 +17,7 @@ def get_db_connection():
 
 # -------- INITIALISATION DE LA BASE --------
 def init_db():
-    conn = get_db_connection()
+    conn = get_db_connection ()
     c = conn.cursor()
     
     try:
@@ -66,7 +66,6 @@ def init_db():
         """)
 
         # Table du travail domestique (INSEE)
-        # Ajout d'une contrainte UNIQUE sur sexe+activite pour éviter les doublons
         c.execute("""
         CREATE TABLE IF NOT EXISTS travail_domestique (
             id SERIAL PRIMARY KEY,
@@ -136,6 +135,10 @@ def init_db():
      
         conn.commit()
     finally:
+        c.close()
+        conn.close()
+
+def reset_db():
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -145,23 +148,15 @@ def init_db():
         c.execute("DELETE FROM personnes")
         c.execute("DELETE FROM donnees_insee")
         c.execute("DELETE FROM travail_domestique")
-        # Initialiser les rôles
         c.execute("INSERT INTO personnes (role, prenom, age) VALUES (%s, %s, %s)", ('femme', None, None))
         c.execute("INSERT INTO personnes (role, prenom, age) VALUES (%s, %s, %s)", ('homme', None, None))
         conn.commit()
     finally:
         c.close()
-        conn.closeMA table_info(depenses)")
-        columns = [row[1] for row in c.fetchall()]
-        if 'payeur' not in columns:
-            c.execute("ALTER TABLE depenses ADD COLUMN payeur TEXT DEFAULT 'partagé'")
-            conn.commit()
+        conn.close()
 
 # -------- REVENUS --------
 def get_revenus():
-    with closing(sqlite3.connect(DB_FILE)) as conn:
-        c = conn.cursor()
-        c.execute("SELECT personne, montant FROM revenus")
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -182,6 +177,14 @@ def set_revenu(personne, montant):
     except psycopg2.Error as e:
         print(f"Erreur lors de l'insertion des revenus: {e}")
         return False
+    finally:
+        c.close()
+        conn.close()
+    return True
+
+# -------- DEPENSES --------
+def get_depenses():
+    """Retourne un dict des dépenses (pour compatibilité)"""
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -207,18 +210,26 @@ def get_depenses_with_payeur():
 def add_depense(categorie, montant, payeur="partagé"):
     """Ajoute une dépense avec son payeur (homme/femme/partagé)"""
     conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO depenses (categorie, montant, payeur) VALUES (%s, %s, %s)", (categorie, montant, payeur))
+        conn.commit()
+    except psycopg2.Error as e:
+        print(f"Erreur lors de l'ajout de la dépense: {e}")
+        return False
+    finally:
+        c.close()
+        conn.close()
+    return True
+
+# -------- ETAPE DU CHATBOT --------
+def get_step():
     conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("SELECT value FROM step WHERE key=%s", ('current',))
         row = c.fetchone()
-        if row:
-            return row[0]
-        else:
-            c.close()
-            conn.close()
-            set_step(None)
-            return None
+        return row[0] if row else None
     finally:
         c.close()
         conn.close()
@@ -236,8 +247,10 @@ def set_step(step):
     finally:
         c.close()
         conn.close()
-    with closing(sqlite3.connect(DB_FILE)) as conn:
-        c = conn.cursor()
+    return True
+
+# -------- PERSONNES --------
+def set_personne(role, prenom=None, age=None):
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -268,15 +281,11 @@ def get_personnes():
     finally:
         c.close()
         conn.close()
-            c = conn.cursor()
-            c.execute("SELECT prenom, age FROM personnes WHERE role = ?", (role,))
-            row = c.fetchone()
-            if row:
-                new_prenom = prenom if prenom is not None else row[0]
-                new_age = age if age is not None else row[1]
-                c.execute("UPDATE personnes SET prenom=?, age=? WHERE role=?", (new_prenom, new_age, role))
-            else:
-                c.execute("INSERT INTO personnes (role, prenom, age) VALUES (?, ?, ?)", (role, prenom, age))
+
+# -------- DONNEES INSEE --------
+
+def insert_donnees_insee(sexe, activite, volume_horaire, cout_horaire=15):
+    cout = round(volume_horaire * cout_horaire, 2)
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -290,21 +299,14 @@ def get_personnes():
         return False
     finally:
         c.close()
-        conn.close()etchall()
-        return {role: {"prenom": prenom or "", "age": age} for role, prenom, age in result}
+        conn.close()
+    return True
 
-# -------- DONNEES INSEE --------
-
-def insert_donnees_insee(sexe, activite, volume_horaire, cout_horaire=15):
-    cout = round(volume_horaire * cout_horaire, 2)
-    try:
-        with closing(sqlite3.connect(DB_FILE)) as conn:
-            c = conn.cursor()
-            c.execute("""
-                INSERT INTO donnees_insee (sexe, activite, volume_horaire, cout)
-                VALUES (?, ?, ?, ?)
-            """, (sexe, activite, volume_horaire, cout))
-           get_db_connection()
+# -------- TRAVAIL DOMESTIQUE --------
+def insert_travail_domestique(sexe, activite, tranche_age, duree_minutes, cout_horaire=15):
+    heures = duree_minutes / 60
+    cout = heures * cout_horaire
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("""
@@ -330,35 +332,34 @@ def get_travail_domestique():
             FROM travail_domestique
         """)
         rows = c.fetchall()
+
+        travail_domestique = {}
+
+        for sexe, activite, minutes_jour, cout_jour in rows:
+            heures_jour = minutes_jour / 60
+
+            if activite not in travail_domestique:
+                travail_domestique[activite] = {
+                    "homme": 0,
+                    "femme": 0,
+                    "cout_homme": 0,
+                    "cout_femme": 0
+                }
+
+            if sexe == "homme":
+                travail_domestique[activite]["homme"] += heures_jour
+                travail_domestique[activite]["cout_homme"] += cout_jour
+            else:
+                travail_domestique[activite]["femme"] += heures_jour
+                travail_domestique[activite]["cout_femme"] += cout_jour
+
+        return travail_domestique
     finally:
-        pass # Keep connection open for now
+        c.close()
+        conn.close()
 
-def get_travail_domestique():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
-        SELECT sexe, activite, duree_minutes, cout_jour
-        FROM travail_domestique
-    """)
-    rows = c.fetchall()
-    conn.close()
 
-    travail_domestique = {}
-
-    for sexe, activite, minutes_jour, cout_jour in rows:
-        heures_jour = minutes_jour / 60
-
-    c.close()
-    conn.close()
-        if activite not in travail_domestique:
-            travail_domestique[activite] = {
-                "homme": 0,
-                "femme": 0,
-                "cout_homme": 0,
-                "cout_femme": 0
-            }
-
-        if sexe == "homme":
+def get_categories_domestiques():
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -403,15 +404,21 @@ def get_estimation_insee(sexe, activite, tranche_age):
         return round(heures_semaine, 1)
     finally:
         c.close()
-        conn.close(
-        """, (sexe, activite, tranche_age))
-        row = c.fetchone()
+        conn.close()
 
-    if not row:
+
+def get_tranche_age_for_age(sexe, activite, age):
+    """
+    Retourne la tranche_age (ex: '25-34 ans') correspondant à l'âge,
+    en se basant sur la table donnees_insee.
+    """
+    if age is None:
         return None
 
-    minutes_jour = row[0]
-    heures_semaine = (minutes_jour / 60) * 7
+    try:
+        age = int(age)
+    except (ValueError, TypeError):
+        return None
 
     conn = get_db_connection()
     c = conn.cursor()
@@ -426,7 +433,6 @@ def get_estimation_insee(sexe, activite, tranche_age):
         tranches = [row[0] for row in c.fetchall()]
 
         for tranche in tranches:
-            # extrait les deux bornes depuis "18-24 ans"
             match = re.match(r"(\d+)\s*-\s*(\d+)\s*ans", tranche)
             if not match:
                 continue
@@ -450,16 +456,20 @@ def get_age(role):
         return row[0] if row else None
     finally:
         c.close()
-        conn.close()depuis "18-24 ans"
-        match = re.match(r"(\d+)\s*-\s*(\d+)\s*ans", tranche)
-        if not match:
-            continue
+        conn.close()
 
-        age_min, age_max = map(int, match.groups())
-        if age_min <= age <= age_max:
-            return tranche
+def insert_travail_domestique_user(
+    prenom,
+    age,
+    tranche_age,
+    sexe,
+    activite,
+    heures_semaine
+):
+    # heures/semaine → minutes/jour
+    minutes_jour = round((heures_semaine * 60) / 7)
 
-    return get_db_connection()
+    conn = get_db_connection()
     c = conn.cursor()
 
     try:
@@ -476,34 +486,68 @@ def get_age(role):
             sexe,
             activite,
             minutes_jour,
-            round(minutes_jour / 60, 2),   # heures/jour (calculées, pas stockées conceptuellement)
-            round((minutes_jour / 60) * 15, 2)  # coût / jour
+            round(minutes_jour / 60, 2),
+            round((minutes_jour / 60) * 15, 2)
         ))
 
         conn.commit()
     finally:
         c.close()
-    
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
+        conn.close()
 
-    c.execute("""
-        INSERT INTO travail_domestique (
-            prenom, age, tranche_age, sexe, activite,
-            duree_minutes, duree_heures, cout_jour
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        prenom,
-        age,
-        tranche_age,
-        sexe,
-        activite,
-        minutes_jour,
-        round(minutes_jour / 60, 2),   # heures/jour (calculées, pas stockées conceptuellement)
-        round((minutes_jour / 60) * 15, 2)  # coût / jour
-    ))
+# -------- SESSION-BASED STORAGE (for poor network) --------
+# Store data in Flask session, save to DB only at the end
 
-    conn.commit()
-    conn.close()
+def get_session_data(flask_session):
+    """Get data from Flask session"""
+    return {
+        'revenus': flask_session.get('revenus', {}),
+        'depenses': flask_session.get('depenses', []),
+        'personnes': flask_session.get('personnes', {}),
+        'step': flask_session.get('step', None),
+        'travail_domestique': flask_session.get('travail_domestique', [])
+    }
+
+def set_session_data(flask_session, data_key, value):
+    """Set data in Flask session"""
+    flask_session[data_key] = value
+    flask_session.modified = True
+
+def save_session_to_db(flask_session):
+    """Save all session data to remote database in one batch"""
+    try:
+        data = get_session_data(flask_session)
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # Save revenus
+        for personne, montant in data.get('revenus', {}).items():
+            c.execute("INSERT INTO revenus (personne, montant) VALUES (%s, %s) ON CONFLICT (personne) DO UPDATE SET montant = %s", 
+                      (personne, montant, montant))
+        
+        # Save depenses
+        for categorie, montant, payeur in data.get('depenses', []):
+            c.execute("INSERT INTO depenses (categorie, montant, payeur) VALUES (%s, %s, %s)", 
+                      (categorie, montant, payeur))
+        
+        # Save personnes
+        for role, info in data.get('personnes', {}).items():
+            c.execute("INSERT INTO personnes (role, prenom, age) VALUES (%s, %s, %s) ON CONFLICT (role) DO UPDATE SET prenom = %s, age = %s", 
+                      (role, info.get('prenom'), info.get('age'), info.get('prenom'), info.get('age')))
+        
+        # Save travail_domestique
+        for item in data.get('travail_domestique', []):
+            prenom, age, tranche_age, sexe, activite, duree_minutes = item
+            c.execute("""
+                INSERT INTO travail_domestique (prenom, age, tranche_age, sexe, activite, duree_minutes, duree_heures, cout_jour)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (prenom, age, tranche_age, sexe, activite, duree_minutes, round(duree_minutes / 60, 2), round((duree_minutes / 60) * 15, 2)))
+        
+        conn.commit()
+        c.close()
+        conn.close()
+        return True
+    except psycopg2.Error as e:
+        print(f"Erreur lors de la sauvegarde en base: {e}")
+        return False
 
