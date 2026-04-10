@@ -1,8 +1,13 @@
 """API routes for data endpoints"""
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify, session, request
 from src.db import (reset_db, get_revenus, get_personnes, 
                     get_depenses_with_payeur, get_travail_domestique,
-                    save_session_to_db)
+                    save_session_to_db, delete_personne, delete_depense, update_depense, get_depenses)
+from src.session_manager import (
+    session_update_personne, session_update_revenu, session_delete_personne,
+    session_delete_revenu, session_delete_depense, session_update_depense,
+    session_get_personnes, session_get_revenus, session_get_depenses_with_payeur
+)
 
 api_bp = Blueprint('api', __name__)
 
@@ -14,7 +19,7 @@ def session_get_personnes():
     # Fallback to database
     try:
         return get_personnes()
-    except:
+    except Exception:
         return {}
 
 def session_get_revenus():
@@ -24,7 +29,7 @@ def session_get_revenus():
     # Fallback to database
     try:
         return get_revenus()
-    except:
+    except Exception:
         return {}
 
 def session_get_depenses_with_payeur():
@@ -35,7 +40,7 @@ def session_get_depenses_with_payeur():
     # Fallback to database
     try:
         return get_depenses_with_payeur()
-    except:
+    except Exception:
         return []
 
 def session_get_travail_domestique():
@@ -66,7 +71,7 @@ def session_get_travail_domestique():
     # Fallback to database
     try:
         return get_travail_domestique()
-    except:
+    except Exception:
         return {}
 
 def get_bilan_cached():
@@ -225,6 +230,97 @@ def calculate_equite(revenus, contribution, travail_domestique, personnes):
         import traceback
         traceback.print_exc()
         return {"non_calculé": True, "interpretation": f"Erreur de calcul: {str(e)}"}
+
+# -------- CRUD API ENDPOINTS --------
+
+# GET ENDPOINTS
+@api_bp.route("/api/data/personnes", methods=["GET"])
+def get_personnes_api():
+    """Get all personnes from session or database"""
+    return jsonify(session_get_personnes())
+
+@api_bp.route("/api/data/revenus", methods=["GET"])
+def get_revenus_api():
+    """Get all revenus from session or database"""
+    return jsonify(session_get_revenus())
+
+@api_bp.route("/api/data/depenses", methods=["GET"])
+def get_depenses_api():
+    """Get all depenses from session or database"""
+    depenses_list = session_get_depenses_with_payeur()
+    return jsonify({
+        "depenses": [
+            {"id": i, "description": d[0], "montant": d[1], "payeur": d[2]}
+            for i, d in enumerate(depenses_list)
+        ]
+    })
+
+# PUT ENDPOINTS (UPDATE)
+@api_bp.route("/api/data/personnes/<role>", methods=["PUT"])
+def update_personne_api(role):
+    """Update a personne"""
+    try:
+        data = request.json
+        success = session_update_personne(role, prenom=data.get('prenom'), age=data.get('age'))
+        if success:
+            return jsonify({"status": "success", "message": "Personne mise à jour"})
+        else:
+            return jsonify({"status": "error", "message": "Erreur lors de la mise à jour"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+@api_bp.route("/api/data/revenus/<role>", methods=["PUT"])
+def update_revenu_api(role):
+    """Update a revenu"""
+    try:
+        data = request.json
+        montant = data.get('montant')
+        success = session_update_revenu(role, montant)
+        if success:
+            return jsonify({"status": "success", "message": "Revenu mis à jour"})
+        else:
+            return jsonify({"status": "error", "message": "Erreur lors de la mise à jour"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+@api_bp.route("/api/data/depenses/<int:depense_id>", methods=["PUT"])
+def update_depense_api(depense_id):
+    """Update a depense"""
+    try:
+        data = request.json
+        success = session_update_depense(depense_id, description=data.get('description'), 
+                                         montant=data.get('montant'), payeur=data.get('payeur'))
+        if success:
+            return jsonify({"status": "success", "message": "Dépense mise à jour"})
+        else:
+            return jsonify({"status": "error", "message": "Erreur lors de la mise à jour"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+# DELETE ENDPOINTS
+@api_bp.route("/api/data/personnes/<role>", methods=["DELETE"])
+def delete_personne_api(role):
+    """Delete a personne"""
+    try:
+        success = session_delete_personne(role)
+        if success:
+            return jsonify({"status": "success", "message": "Personne supprimée"})
+        else:
+            return jsonify({"status": "error", "message": "Personne non trouvée"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+@api_bp.route("/api/data/depenses/<int:depense_id>", methods=["DELETE"])
+def delete_depense_api(depense_id):
+    """Delete a depense"""
+    try:
+        success = session_delete_depense(depense_id)
+        if success:
+            return jsonify({"status": "success", "message": "Dépense supprimée"})
+        else:
+            return jsonify({"status": "error", "message": "Dépense non trouvée"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 @api_bp.route("/api/save-to-db", methods=["POST"])
 def save_to_db():

@@ -235,6 +235,48 @@ def add_depense(categorie, montant, payeur="partagé"):
         conn.close()
     return True
 
+def delete_depense(depense_id):
+    """Delete a depense by ID from database"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("DELETE FROM depenses WHERE id = %s", (depense_id,))
+        conn.commit()
+        return True
+    except psycopg2.Error as e:
+        print(f"Error deleting depense: {e}")
+        return False
+    finally:
+        c.close()
+        conn.close()
+
+def update_depense(depense_id, categorie=None, montant=None, payeur=None):
+    """Update a depense in database"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        # Get current values first
+        c.execute("SELECT categorie, montant, payeur FROM depenses WHERE id = %s", (depense_id,))
+        row = c.fetchone()
+        if not row:
+            return False
+        
+        current_categorie, current_montant, current_payeur = row
+        new_categorie = categorie if categorie is not None else current_categorie
+        new_montant = montant if montant is not None else current_montant
+        new_payeur = payeur if payeur is not None else current_payeur
+        
+        c.execute("UPDATE depenses SET categorie=%s, montant=%s, payeur=%s WHERE id=%s",
+                  (new_categorie, new_montant, new_payeur, depense_id))
+        conn.commit()
+        return True
+    except psycopg2.Error as e:
+        print(f"Error updating depense: {e}")
+        return False
+    finally:
+        c.close()
+        conn.close()
+
 # -------- ETAPE DU CHATBOT --------
 def get_step():
     conn = get_db_connection()
@@ -291,6 +333,21 @@ def get_personnes():
         c.execute("SELECT role, prenom, age FROM personnes")
         result = c.fetchall()
         return {role: {"prenom": prenom or "", "age": age} for role, prenom, age in result}
+    finally:
+        c.close()
+        conn.close()
+
+def delete_personne(role):
+    """Delete a personne from database"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("DELETE FROM personnes WHERE role = %s", (role,))
+        conn.commit()
+        return True
+    except psycopg2.Error as e:
+        print(f"Error deleting personne: {e}")
+        return False
     finally:
         c.close()
         conn.close()

@@ -41,6 +41,62 @@
 <h1>💰 Tableau de bord des finances</h1>
 <div id="infos">Chargement des données...</div>
 
+<!-- CRUD TABLES SECTION -->
+<section id="crud-section" style="margin-top: 40px; display: none;">
+    <h2>📝 Modifier les données</h2>
+    
+    <!-- PERSONNES TABLE -->
+    <div style="margin-bottom: 30px;">
+        <h3>Personnes</h3>
+        <table id="personnes-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead>
+                <tr style="background: #f0f0f0;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Rôle</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Prénom</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Âge</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- REVENUS TABLE -->
+    <div style="margin-bottom: 30px;">
+        <h3>Revenus</h3>
+        <table id="revenus-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead>
+                <tr style="background: #f0f0f0;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Rôle</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Montant (€)</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- DEPENSES TABLE -->
+    <div style="margin-bottom: 30px;">
+        <h3>Dépenses</h3>
+        <table id="depenses-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead>
+                <tr style="background: #f0f0f0;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Description</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Montant (€)</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Payeur</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <button id="toggle-crud-btn" style="padding: 10px 20px; background: #999; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;">Masquer la modification</button>
+</section>
+
+<button id="show-crud-btn" style="display: none; padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;">✏️ Modifier les données</button>
+
 <div class="charts">
     <canvas id="chartRevenus"></canvas>
     <canvas id="chartCategories"></canvas>
@@ -392,6 +448,259 @@ window.addEventListener('beforeunload', async (event) => {
 const popup = document.getElementById("chatbot-popup");
 document.getElementById("chatbot-button").onclick = () =>
     popup.style.display = popup.style.display === "block" ? "none" : "block";
+
+// ========== CRUD OPERATIONS ==========
+// Toggle CRUD section visibility
+document.getElementById('show-crud-btn').addEventListener('click', () => {
+    document.getElementById('crud-section').style.display = 'block';
+    document.getElementById('show-crud-btn').style.display = 'none';
+});
+
+document.getElementById('toggle-crud-btn').addEventListener('click', () => {
+    document.getElementById('crud-section').style.display = 'none';
+    document.getElementById('show-crud-btn').style.display = 'block';
+});
+
+// Load CRUD data
+async function loadCRUDData() {
+    try {
+        const personnesRes = await fetch('/api/data/personnes');
+        const revenusRes = await fetch('/api/data/revenus');
+        const depensesRes = await fetch('/api/data/depenses');
+        
+        const personnes = await personnesRes.json();
+        const revenus = await revenusRes.json();
+        const depenses = await depensesRes.json();
+        
+        populatePersonnesTable(personnes);
+        populateRevenusTable(revenus);
+        populateDepensesTable(depenses.depenses || []);
+        
+        // Show CRUD section if there's data
+        if (Object.keys(personnes).length > 0 || Object.keys(revenus).length > 0 || (depenses.depenses && depenses.depenses.length > 0)) {
+            document.getElementById('show-crud-btn').style.display = 'inline-block';
+        }
+    } catch (error) {
+        console.error('Error loading CRUD data:', error);
+    }
+}
+
+function populatePersonnesTable(personnes) {
+    const tbody = document.querySelector('#personnes-table tbody');
+    tbody.innerHTML = '';
+    
+    for (const [role, data] of Object.entries(personnes)) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td style="padding: 10px; border: 1px solid #ddd;">${role}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <input type="text" class="prenom-input" value="${data.prenom || ''}" placeholder="Prénom">
+            </td>
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <input type="number" class="age-input" value="${data.age || ''}" placeholder="Âge">
+            </td>
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <button onclick="updatePersonne('${role}')" style="padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; margin-right: 5px;">✓ Sauver</button>
+                <button onclick="deletePersonne('${role}')" style="padding: 5px 10px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer;">🗑 Supprimer</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    }
+}
+
+function populateRevenusTable(revenus) {
+    const tbody = document.querySelector('#revenus-table tbody');
+    tbody.innerHTML = '';
+    
+    for (const [role, montant] of Object.entries(revenus)) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td style="padding: 10px; border: 1px solid #ddd;">${role}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <input type="number" class="montant-input" value="${montant || ''}" placeholder="Montant" step="0.01">
+            </td>
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <button onclick="updateRevenu('${role}')" style="padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; margin-right: 5px;">✓ Sauver</button>
+                <button onclick="deleteRevenu('${role}')" style="padding: 5px 10px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer;">🗑 Supprimer</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    }
+}
+
+function populateDepensesTable(depenses) {
+    const tbody = document.querySelector('#depenses-table tbody');
+    tbody.innerHTML = '';
+    
+    depenses.forEach((depense, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <input type="text" class="description-input" value="${depense.description || ''}" placeholder="Description">
+            </td>
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <input type="number" class="montant-input" value="${depense.montant || ''}" placeholder="Montant" step="0.01">
+            </td>
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <select class="payeur-input">
+                    <option value="homme" ${depense.payeur === 'homme' ? 'selected' : ''}>Homme</option>
+                    <option value="femme" ${depense.payeur === 'femme' ? 'selected' : ''}>Femme</option>
+                    <option value="partagé" ${depense.payeur === 'partagé' ? 'selected' : ''}>Partagé</option>
+                </select>
+            </td>
+            <td style="padding: 10px; border: 1px solid #ddd;">
+                <button onclick="updateDepense(${index})" style="padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; margin-right: 5px;">✓ Sauver</button>
+                <button onclick="deleteDepense(${index})" style="padding: 5px 10px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer;">🗑 Supprimer</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// CRUD API calls
+async function updatePersonne(role) {
+    const rows = document.querySelectorAll('#personnes-table tbody tr');
+    let targetRow = null;
+    rows.forEach(row => {
+        if (row.cells[0].textContent === role) targetRow = row;
+    });
+    
+    if (!targetRow) return;
+    
+    const prenom = targetRow.querySelector('.prenom-input').value;
+    const age = targetRow.querySelector('.age-input').value;
+    
+    try {
+        const res = await fetch(`/api/data/personnes/${role}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prenom, age: age ? parseInt(age) : null })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert('✓ Personne mise à jour');
+            refreshInfos();
+        } else {
+            alert('✗ Erreur: ' + data.message);
+        }
+    } catch (error) {
+        alert('✗ Erreur: ' + error.message);
+    }
+}
+
+async function deletePersonne(role) {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${role}?`)) return;
+    
+    try {
+        const res = await fetch(`/api/data/personnes/${role}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert('✓ Personne supprimée');
+            loadCRUDData();
+            refreshInfos();
+        } else {
+            alert('✗ Erreur: ' + data.message);
+        }
+    } catch (error) {
+        alert('✗ Erreur: ' + error.message);
+    }
+}
+
+async function updateRevenu(role) {
+    const rows = document.querySelectorAll('#revenus-table tbody tr');
+    let targetRow = null;
+    rows.forEach(row => {
+        if (row.cells[0].textContent === role) targetRow = row;
+    });
+    
+    if (!targetRow) return;
+    
+    const montant = targetRow.querySelector('.montant-input').value;
+    
+    try {
+        const res = await fetch(`/api/data/revenus/${role}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ montant: parseFloat(montant) })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert('✓ Revenu mis à jour');
+            refreshInfos();
+        } else {
+            alert('✗ Erreur: ' + data.message);
+        }
+    } catch (error) {
+        alert('✗ Erreur: ' + error.message);
+    }
+}
+
+async function deleteRevenu(role) {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le revenu de ${role}?`)) return;
+    
+    try {
+        const res = await fetch(`/api/data/revenus/${role}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert('✓ Revenu supprimé');
+            loadCRUDData();
+            refreshInfos();
+        } else {
+            alert('✗ Erreur: ' + data.message);
+        }
+    } catch (error) {
+        alert('✗ Erreur: ' + error.message);
+    }
+}
+
+async function updateDepense(depenseIndex) {
+    const allRows = document.querySelectorAll('#depenses-table tbody tr');
+    const targetRow = allRows[depenseIndex];
+    
+    if (!targetRow) return;
+    
+    const description = targetRow.querySelector('.description-input').value;
+    const montant = targetRow.querySelector('.montant-input').value;
+    const payeur = targetRow.querySelector('.payeur-input').value;
+    
+    try {
+        const res = await fetch(`/api/data/depenses/${depenseIndex}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description, montant: parseFloat(montant), payeur })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert('✓ Dépense mise à jour');
+            refreshInfos();
+        } else {
+            alert('✗ Erreur: ' + data.message);
+        }
+    } catch (error) {
+        alert('✗ Erreur: ' + error.message);
+    }
+}
+
+async function deleteDepense(depenseIndex) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette dépense?')) return;
+    
+    try {
+        const res = await fetch(`/api/data/depenses/${depenseIndex}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert('✓ Dépense supprimée');
+            loadCRUDData();
+            refreshInfos();
+        } else {
+            alert('✗ Erreur: ' + data.message);
+        }
+    } catch (error) {
+        alert('✗ Erreur: ' + error.message);
+    }
+}
+
+// Load CRUD data on page load
+document.addEventListener('DOMContentLoaded', loadCRUDData);
 
 // Enregistrer le Service Worker pour PWA
 if ('serviceWorker' in navigator) {

@@ -86,6 +86,97 @@ def session_get_depenses():
         return result
     return {}
 
+# -------- UPDATE FUNCTIONS --------
+def session_update_personne(role: str, prenom: str = None, age: int = None) -> bool:
+    """Update a personne record in session"""
+    try:
+        if role not in session.get('personnes', {}):
+            session['personnes'][role] = {}
+        if prenom is not None:
+            session['personnes'][role]['prenom'] = prenom
+        if age is not None:
+            if not (0 <= int(age) <= 150):
+                raise ValueError(f"Age must be between 0 and 150, got {age}")
+            session['personnes'][role]['age'] = int(age)
+        session.modified = True
+        return True
+    except Exception as e:
+        print(f"Error updating personne: {e}")
+        return False
+
+def session_update_revenu(role: str, montant: float) -> bool:
+    """Update a revenu in session"""
+    try:
+        montant = float(montant)
+        if montant < 0:
+            raise ValueError("Montant cannot be negative")
+        if 'revenus' not in session:
+            session['revenus'] = {}
+        session['revenus'][role] = montant
+        session.modified = True
+        return True
+    except Exception as e:
+        print(f"Error updating revenu: {e}")
+        return False
+
+def session_update_depense(depense_index: int, description: str = None, montant: float = None, payeur: str = None) -> bool:
+    """Update a depense in session"""
+    try:
+        if 'depenses' not in session or depense_index >= len(session['depenses']):
+            return False
+        if description is not None:
+            session['depenses'][depense_index]['description'] = description
+        if montant is not None:
+            montant = float(montant)
+            if montant < 0:
+                raise ValueError("Montant cannot be negative")
+            session['depenses'][depense_index]['montant'] = montant
+        if payeur is not None:
+            session['depenses'][depense_index]['payeur'] = payeur
+        session.modified = True
+        return True
+    except Exception as e:
+        print(f"Error updating depense: {e}")
+        return False
+
+# -------- DELETE FUNCTIONS --------
+def session_delete_personne(role: str) -> bool:
+    """Delete a personne from session"""
+    try:
+        if 'personnes' in session and role in session['personnes']:
+            del session['personnes'][role]
+            session.modified = True
+            return True
+        return False
+    except Exception as e:
+        print(f"Error deleting personne: {e}")
+        return False
+
+def session_delete_revenu(role: str) -> bool:
+    """Delete a revenu from session"""
+    try:
+        if 'revenus' in session and role in session['revenus']:
+            del session['revenus'][role]
+            session.modified = True
+            return True
+        return False
+    except Exception as e:
+        print(f"Error deleting revenu: {e}")
+        return False
+
+def session_delete_depense(depense_index: int) -> bool:
+    """Delete a depense from session"""
+    try:
+        if 'depenses' in session and 0 <= depense_index < len(session['depenses']):
+            session['depenses'].pop(depense_index)
+            session.modified = True
+            return True
+        return False
+    except Exception as e:
+        print(f"Error deleting depense: {e}")
+        return False
+
+# -------- SAVE TO DB --------
 def save_session_data_to_db():
     """Save all buffered session data to database at once"""
     from src.db import set_personne, set_revenu, add_depense, insert_travail_domestique_user
