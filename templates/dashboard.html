@@ -210,11 +210,12 @@ async function refreshInfos() {
 
             <h2>Travail domestique – Femme</h2>
             <table>
-                <tr><th>Tâche</th><th>Heures / mois</th></tr>`;
+                <tr><th>Tâche</th><th>Heures / mois</th><th>€ / mois</th></tr>`;
 
         /* ======================= TRAVAIL DOMESTIQUE ======================= */
         let travailF = "", travailH = "";
         let totalHF = 0, totalHH = 0;
+        let totalCF = 0, totalCH = 0;
 
         const joursParMois = 30.44;
 
@@ -224,13 +225,19 @@ async function refreshInfos() {
                 const heuresMoisF = (data.femme || 0) * joursParMois;
                 const heuresMoisH = (data.homme || 0) * joursParMois;
 
+                // Récupérer les coûts calculés par le backend
+                const coutMoisF = data.cout_femme || 0;
+                const coutMoisH = data.cout_homme || 0;
+
                 if (data.femme > 0) {
                     travailF += `
                         <tr>
                             <td>${activite}</td>
                             <td>${heuresMoisF.toFixed(2)}</td>
+                            <td>${coutMoisF.toFixed(2)}</td>
                         </tr>`;
                     totalHF += heuresMoisF;
+                    totalCF += coutMoisF;
                 }
 
                 if (data.homme > 0) {
@@ -238,24 +245,26 @@ async function refreshInfos() {
                         <tr>
                             <td>${activite}</td>
                             <td>${heuresMoisH.toFixed(2)}</td>
+                            <td>${coutMoisH.toFixed(2)}</td>
                         </tr>`;
                     totalHH += heuresMoisH;
+                    totalCH += coutMoisH;
                 }
             });
         } else {
             travailF = travailH =
-                "<tr><td colspan='2'>Aucune donnée</td></tr>";
+                "<tr><td colspan='3'>Aucune donnée</td></tr>";
         }
 
         infosHtml += travailF + `
-                <tr><td><b>Total</b></td><td><b>${totalHF.toFixed(2)}</b></td></tr>
+                <tr><td><b>Total</b></td><td><b>${totalHF.toFixed(2)}</b></td><td><b>${totalCF.toFixed(2)}</b></td></tr>
             </table>
 
             <h2>Travail domestique – Homme</h2>
             <table>
-                <tr><th>Tâche</th><th>Heures / mois</th></tr>
+                <tr><th>Tâche</th><th>Heures / mois</th><th>€ / mois</th></tr>
                 ${travailH}
-                <tr><td><b>Total</b></td><td><b>${totalHH.toFixed(2)}</b></td></tr>
+                <tr><td><b>Total</b></td><td><b>${totalHH.toFixed(2)}</b></td><td><b>${totalCH.toFixed(2)}</b></td></tr>
             </table>
         `;
 
@@ -343,6 +352,19 @@ refreshInfos();
 // Poll every 500ms for instant updates from session (no database overhead)
 // Dashboard now reads ONLY from active chat session, not from database
 setInterval(refreshInfos, 500);
+
+// Expose refreshInfos globally so iframe can trigger updates
+window.refreshDashboard = refreshInfos;
+
+// Auto-save data to database before page unload
+window.addEventListener('beforeunload', async (event) => {
+    try {
+        await fetch('/api/save-to-db', { method: 'POST' });
+        console.log('Data auto-saved to database');
+    } catch (e) {
+        console.error('Error auto-saving data:', e);
+    }
+});
 
 /* popup chatbot */
 const popup = document.getElementById("chatbot-popup");

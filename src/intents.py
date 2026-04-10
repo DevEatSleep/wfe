@@ -1,32 +1,18 @@
-INTENTS = {
-    "add_depense": {
-        "verbs": [
-            "ajouter", "ajoute", "payer", "acheter", "dépenser", "sortir", "investir"
-        ],
-        "keywords": [
-            "dépense", "courses", "loyer", "facture", "restaurant", "resto",
-            "transport", "essence", "carburant", "électricité", "eau", "internet",
-            "abonnement", "cinéma", "vacances", "shopping", "achat", "charge"
-        ],
-        "entities": ["MONEY"]
-    },
-    "update_revenu": {
-        "verbs": [
-            "modifier", "changer", "mettre", "ajouter", "déclarer", "indiquer"
-        ],
-        "keywords": [
-            "revenu", "salaire", "gain", "paie", "prime", "rentrée d'argent"
-        ],
-        "entities": ["MONEY"]
-    },    
-    "reset": {
-        "keywords": [
-            "reset", "réinitialiser", "effacer", "vider", "recommencer", "nouveau départ"
-        ]
-    },
-    "help": {
-        "keywords": [
-            "aide", "help", "comment", "instructions", "guide", "expliquer", "utiliser"
-        ]
-    }
-}
+import json
+import os
+
+# Load intents from external JSON file
+def load_intents():
+    intents_path = os.path.join(os.path.dirname(__file__), "..", "data", "intents.json")
+    try:
+        with open(intents_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"Warning: intents.json not found at {intents_path}")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"Error parsing intents.json: {e}")
+        return {}
+
+INTENTS = load_intents()
+

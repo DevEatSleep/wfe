@@ -55,6 +55,11 @@
         .then(data => {
             if (data && data.reply) {
                 addMessage('bot', data.reply); // Afficher la réponse du chatbot
+                
+                // Refresh parent dashboard immediately after chat response
+                if (window.parent && window.parent.refreshDashboard) {
+                    window.parent.refreshDashboard();
+                }
             } else {
                 console.error('Invalid response structure:', data);
                 addMessage('bot', 'Erreur: Pas de réponse du serveur.');
@@ -112,6 +117,11 @@
         .then(data => {
             if (data && data.reply) {
                 addMessage('bot', data.reply); // Afficher la réponse du chatbot (le message de bienvenue)
+                
+                // Refresh parent dashboard on initial load
+                if (window.parent && window.parent.refreshDashboard) {
+                    window.parent.refreshDashboard();
+                }
             } else {
                 console.error('Invalid response structure:', data);
                 addMessage('bot', 'Erreur: Le chatbot n\'a pas pu démarrer correctement.');
@@ -127,6 +137,16 @@
     document.getElementById('user-message').addEventListener('keypress', (event) => {
         if (event.key === 'Enter') {
             sendMessage();
+        }
+    });
+
+    // Auto-save data to database before page unload
+    window.addEventListener('beforeunload', async (event) => {
+        try {
+            await fetch('/api/save-to-db', { method: 'POST' });
+            console.log('Chat data auto-saved to database');
+        } catch (e) {
+            console.error('Error auto-saving chat data:', e);
         }
     });
 

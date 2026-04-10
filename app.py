@@ -216,13 +216,9 @@ def calculer_equite():
     else:
         ratio_revenu_h = ratio_revenu_f = 0.5
     
-    # Heures réelles de travail domestique
+    # Heures réelles de travail domestique (déjà en heures/semaine)
     heures_h = sum([data.get("homme", 0) for data in travail_user.values()]) if travail_user else 0
     heures_f = sum([data.get("femme", 0) for data in travail_user.values()]) if travail_user else 0
-    
-    # Convertir en heures/semaine (les valeurs sont en heures/jour)
-    heures_h = heures_h * 7
-    heures_f = heures_f * 7
     
     # Ratio travail domestique
     total_heures_ratiocalc = heures_h + heures_f
@@ -440,6 +436,8 @@ def step_depenses(msg):
     # Si l'utilisateur a terminé
     if normaliser(msg) in END_DEPENSES:
         steps = build_steps()
+        if not steps:
+            return StateResult("❌ Erreur : Aucune catégorie d'activité disponible. Veuillez contacter l'administrateur.")
         return StateResult(
             "⏱️ Passons aux heures réelles.<br>" + get_current_question(steps[0]),
             steps[0]
@@ -449,9 +447,25 @@ def step_depenses(msg):
     if _depense_temp.get("awaiting_payeur"):
         payeur = normaliser(msg)
         
-        # Valider le payeur
-        if payeur in {"homme", "femme", "partagé", "partage"}:
-            payeur_final = "partagé" if payeur == "partage" else payeur
+        # Handle common variations
+        payeur_mapping = {
+            "femme": "femme",
+            "f": "femme",
+            "woman": "femme",
+            "homme": "homme", 
+            "h": "homme",
+            "man": "homme",
+            "partagé": "partagé",
+            "partage": "partagé",
+            "shared": "partagé",
+            "both": "partagé",
+            "moitié": "partagé",
+            "moitie": "partagé"
+        }
+        
+        payeur_final = payeur_mapping.get(payeur)
+        
+        if payeur_final:
             montant = _depense_temp["montant"]
             desc = _depense_temp["desc"]
             
@@ -466,7 +480,8 @@ def step_depenses(msg):
             )
         else:
             return StateResult(
-                "❌ Qui a payé? Répondez: <b>homme</b>, <b>femme</b>, ou <b>partagé</b>",
+                "❓ Je n'ai pas compris. Qui a payé? Répondez :<br>"
+                "👩 <b>femme</b> | 👨 <b>homme</b> | 👥 <b>partagé</b>",
                 "depenses"
             )
     
@@ -602,23 +617,27 @@ def chat():
     try:
         message = request.json.get("message", "").strip()
         
-        # Use session cache if available to avoid repeated get_step() calls
-        if 'current_step' in session:
+        # Always get fresh step from database, but use session as backup
+        step = get_step()
+        if step is None and 'current_step' in session:
             step = session['current_step']
-        else:
-            step = get_step()
-            session['current_step'] = step
         
         intent = detect_intent(message, INTENTS)
 
         # Handle reset intent first, with high priority
         if intent == "reset":
             reset_db()
-            # Clear all buffered session data but keep current_step
             session.clear()
+            set_step("prenom_femme")
             session['current_step'] = "prenom_femme"
             session.modified = True
             return reply_json(MESSAGES["reset"] + "<br>" + get_current_question("prenom_femme"))
+
+        # Initialize if no step is set
+        if step is None:
+            session['current_step'] = "prenom_femme"
+            set_step("prenom_femme")
+            return reply_json(MESSAGES["welcome_base"] + "<br>" + get_current_question("prenom_femme"))
 
         # Handle completed state
         if step == "completed":
@@ -627,12 +646,6 @@ def chat():
             set_step(result.next_step)
             return reply_json(result.reply)
 
-        # Initialize if no step is set
-        if step is None:
-            session['current_step'] = "prenom_femme"
-            set_step("prenom_femme")
-            return reply_json(MESSAGES["welcome_base"] + "<br>" + get_current_question("prenom_femme"))
-
         # Handle housework hours steps
         if step.startswith("heures_"):
             result = step_donnees_insee(message, step)
@@ -640,8 +653,9 @@ def chat():
             # Handle other steps
             result = STATE_HANDLERS[step](message)
 
-        # Update session cache with new step
+        # Update both session cache and database with new step
         session['current_step'] = result.next_step
+        session.modified = True
         set_step(result.next_step)
         return reply_json(result.reply)
     except Exception as e:

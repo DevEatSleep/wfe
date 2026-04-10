@@ -1,5 +1,5 @@
 {
-  "reset": "♻️ <strong>Base réinitialisée</strong>.<br>👉 Recommence avec <em>'revenu homme 2500'</em>.",
+  "reset": "♻️ <strong>Base réinitialisée</strong>.<br>👉 Recommence avec une nouvelle saisie.",
   "aide": "ℹ️ Vous pouvez dire :<br>- « J’ajoute une dépense de 50 € pour le resto »<br>- « Mon revenu homme est 2000 € »<br>- « Mets le revenu femme à 1800 € »<br>- « Reset » pour repartir de zéro",
   
   "depense_ok": "💚 Dépense ajoutée : <strong>{montant} €</strong> pour '<em>{categorie}</em>'.<br>👉 Ajoute une autre dépense.",
@@ -29,13 +29,7 @@
   "welcome_base": "👋 Bienvenue ! Je suis ton assistant financier 🤖.<br><br>Parlez-moi simplement en langage naturel pour gérer vos revenus et vos dépenses.",
   "welcome_data": "👋 Bienvenue ! Je suis ton assistant financier 🤖.<br><br>💰 Revenus enregistrés : Homme {homme} €, Femme {femme} €.<br>🛒 Dépenses enregistrées : {nb_depenses} catégorie(s).<br><br>👉 Tu peux continuer à ajouter des revenus/dépenses.",
   
-  "prenom_femme_q": "Quel est le prénom de la femme ?",
-  "prenom_homme_q": "Quel est le prénom de l’homme ?",
-  "age_femme_q": "Quel est l'âge de {prenom} ?",
-  "age_homme_q": "Quel est l'âge de {prenom} ?",
-  "revenu_femme_q": "Quel est le revenu de {prenom} ?",
-  "revenu_homme_q": "Quel est le revenu de {prenom} ?",
-  
+
   "heures_femme_q": "Combien d’heures par semaine {prenom} consacre-t-elle à {categorie} ?",
   "heures_homme_q": "Combien d’heures par semaine {prenom} consacre-t-il à {categorie} ?",
   

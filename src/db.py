@@ -536,10 +536,10 @@ def save_session_to_db(flask_session):
             c.execute("INSERT INTO revenus (personne, montant) VALUES (%s, %s) ON CONFLICT (personne) DO UPDATE SET montant = %s", 
                       (personne, montant, montant))
         
-        # Save depenses
-        for categorie, montant, payeur in data.get('depenses', []):
+        # Save depenses (stored as dicts with 'description', 'montant', 'payeur')
+        for depense in data.get('depenses', []):
             c.execute("INSERT INTO depenses (categorie, montant, payeur) VALUES (%s, %s, %s)", 
-                      (categorie, montant, payeur))
+                      (depense.get('description'), depense.get('montant'), depense.get('payeur')))
         
         # Save personnes
         for role, info in data.get('personnes', {}).items():
@@ -548,11 +548,11 @@ def save_session_to_db(flask_session):
         
         # Save travail_domestique
         for item in data.get('travail_domestique', []):
-            prenom, age, tranche_age, sexe, activite, duree_minutes = item
+            prenom, age, tranche_age, sexe, activite, heures_semaine = item
             c.execute("""
                 INSERT INTO travail_domestique (prenom, age, tranche_age, sexe, activite, duree_minutes, duree_heures, cout_jour)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (prenom, age, tranche_age, sexe, activite, duree_minutes, round(duree_minutes / 60, 2), round((duree_minutes / 60) * 15, 2)))
+            """, (prenom, age, tranche_age, sexe, activite, round(heures_semaine * 60), round(heures_semaine, 2), round(heures_semaine * 15, 2)))
         
         conn.commit()
         c.close()
