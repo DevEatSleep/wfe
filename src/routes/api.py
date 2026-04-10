@@ -71,23 +71,160 @@ def session_get_travail_domestique():
 
 def get_bilan_cached():
     """Get bilan without caching to ensure real-time updates from session"""
-    # Always fetch fresh session data - no caching for instant updates
-    # Query session ONLY, no database fallback during active chat
-    revenus = session_get_revenus()
-    depenses_details = session_get_depenses_with_payeur()
-    personnes = session_get_personnes()
-    travail_user = session_get_travail_domestique()
-    
-    total_depenses = sum([mont for _, mont, _ in depenses_details]) if depenses_details else 0
-    
-    return {
-        "revenus": revenus,
-        "depenses_details": depenses_details,
-        "total_depenses": total_depenses,
-        "personnes": personnes,
-        "travail_domestique": travail_user,
-        "status": "ok"
-    }
+    try:
+        # Always fetch fresh session data - no caching for instant updates
+        # Query session ONLY, no database fallback during active chat
+        revenus = session_get_revenus()
+        depenses_details = session_get_depenses_with_payeur()
+        personnes = session_get_personnes()
+        travail_user = session_get_travail_domestique()
+        
+        # Ensure depenses_details is a list
+        if not isinstance(depenses_details, list):
+            depenses_details = []
+        
+        total_depenses = sum([float(mont) for _, mont, _ in depenses_details]) if depenses_details else 0
+        
+        # Calculate contribution (how much each person paid)
+        contribution = {}
+        depenses = {}
+        for description, montant, payeur in depenses_details:
+            try:
+                montant = float(montant)
+                # Add to depenses by payeur
+                if payeur not in depenses:
+                    depenses[payeur] = 0
+                depenses[payeur] += montant
+                
+                # Add to contribution
+                if payeur not in contribution:
+                    contribution[payeur] = 0
+                contribution[payeur] += montant
+            except (ValueError, TypeError) as e:
+                print(f"Error processing expense: {e}")
+                continue
+        
+        # Calculate equity score
+        equite = calculate_equite(revenus, contribution, travail_user, personnes)
+        
+        return {
+            "revenus": revenus,
+            "depenses": depenses,
+            "depenses_details": depenses_details,
+            "total_depenses": float(total_depenses),
+            "personnes": personnes,
+            "travail_domestique": travail_user,
+            "contribution": contribution,
+            "equite": equite,
+            "status": "ok"
+        }
+    except Exception as e:
+        print(f"Error in get_bilan_cached: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "revenus": {},
+            "depenses": {},
+            "depenses_details": [],
+            "total_depenses": 0,
+            "personnes": {},
+            "travail_domestique": {},
+            "contribution": {},
+            "equite": {"non_calculé": True, "interpretation": f"Erreur serveur: {str(e)}"},
+            "status": "error"
+        }
+
+def calculate_equite(revenus, contribution, travail_domestique, personnes):
+    """Calculate equity score: compares financial charge (income+expenses) vs domestic work."""
+    try:
+        total_revenu = sum(float(v) for v in revenus.values()) if revenus else 0
+        total_heures = sum(
+            sum(float(data.get(r, 0)) for r in ['homme', 'femme'])
+            for data in travail_domestique.values()
+            if isinstance(data, dict)
+        ) if travail_domestique else 0
+
+        if total_revenu == 0 or total_heures == 0:
+            return {"non_calculé": True, "interpretation": "Données insuffisantes pour calculer le score."}
+
+        rh = float(revenus.get('homme', 0))
+        rf = float(revenus.get('femme', 0))
+
+        # Revenue ratios
+        ratio_revenu_h = rh / total_revenu if total_revenu > 0 else 0.5
+        ratio_revenu_f = rf / total_revenu if total_revenu > 0 else 0.5
+
+        # Domestic work hours (hours/week)
+        heures_h = sum(float(data.get('homme', 0)) for data in travail_domestique.values() if isinstance(data, dict))
+        heures_f = sum(float(data.get('femme', 0)) for data in travail_domestique.values() if isinstance(data, dict))
+        total_h = heures_h + heures_f
+        ratio_travail_h = heures_h / total_h if total_h > 0 else 0.5
+        ratio_travail_f = heures_f / total_h if total_h > 0 else 0.5
+
+        # Expense ratios
+        depense_h = float(contribution.get('homme', 0))
+        depense_f = float(contribution.get('femme', 0))
+        total_dep = depense_h + depense_f
+        ratio_depense_h = depense_h / total_dep if total_dep > 0 else 0.5
+        ratio_depense_f = depense_f / total_dep if total_dep > 0 else 0.5
+
+        # Financial charge = average of income ratio and expense ratio
+        charge_h = (ratio_revenu_h + ratio_depense_h) / 2
+        charge_f = (ratio_revenu_f + ratio_depense_f) / 2
+
+        # Equity score: how closely financial charge matches domestic work share
+        diff_h = abs(charge_h - ratio_travail_h)
+        diff_f = abs(charge_f - ratio_travail_f)
+        iniquite = (diff_h + diff_f) / 2
+        score_equite = max(0.0, 100.0 - (iniquite * 100))
+
+        # Advantage scores: positive = advantaged (high charge, low domestic work)
+        # negative = disadvantaged (low charge, high domestic work)
+        scores_avantage = {
+            'homme': round(float(charge_h - ratio_travail_h), 4),
+            'femme': round(float(charge_f - ratio_travail_f), 4)
+        }
+
+        role_desav = min(scores_avantage, key=lambda r: scores_avantage[r])
+        score_desav = scores_avantage[role_desav]
+        prenom_desav = personnes.get(role_desav, {}).get('prenom', role_desav) if isinstance(personnes.get(role_desav), dict) else role_desav
+
+        if score_desav < -0.15:
+            severity = "très fortement désavantagé(e)"
+        elif score_desav < -0.05:
+            severity = "fortement désavantagé(e)"
+        elif score_desav < 0:
+            severity = "légèrement désavantagé(e)"
+        else:
+            severity = "en position équilibrée"
+
+        if score_equite >= 85:
+            interpretation = "✅ L'équité est bonne ! Les contributions sont bien équilibrées."
+        elif score_equite >= 70:
+            interpretation = f"⚠️ L'équité est modérée. {prenom_desav} est {severity}."
+        else:
+            interpretation = f"❌ L'équité est faible. {prenom_desav} est {severity}."
+
+        return {
+            "non_calculé": False,
+            "score_equite": round(score_equite, 2),
+            "interpretation": interpretation,
+            "ratio_revenu": {"homme": round(ratio_revenu_h, 4), "femme": round(ratio_revenu_f, 4)},
+            "ratio_depense": {"homme": round(ratio_depense_h, 4), "femme": round(ratio_depense_f, 4)},
+            "ratio_travail": {"homme": round(ratio_travail_h, 4), "femme": round(ratio_travail_f, 4)},
+            "heures": {"homme": round(heures_h, 2), "femme": round(heures_f, 2)},
+            "avantage_scores": scores_avantage,
+            "le_plus_desavantage": {
+                "role": role_desav,
+                "prenom": prenom_desav,
+                "score": round(score_desav, 4)
+            }
+        }
+    except Exception as e:
+        print(f"Error in calculate_equite: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"non_calculé": True, "interpretation": f"Erreur de calcul: {str(e)}"}
 
 @api_bp.route("/api/save-to-db", methods=["POST"])
 def save_to_db():

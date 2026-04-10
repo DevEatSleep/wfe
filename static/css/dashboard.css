@@ -45,6 +45,17 @@ tbody tr:last-child {
     font-weight: bold;    
 }
 
+/* Exception : ne pas griser la dernière ligne du tableau d'analyse */
+table.analysis-table tbody tr:last-child {
+    background: #f4f8fb;
+    font-weight: normal;    
+}
+
+/* Centre tout le contenu dans le tableau d'analyse, y compris la première colonne */
+table.analysis-table tbody tr td:first-child {
+    text-align: center;
+}
+
 /* Exception : libellé "Total" aligné à gauche */
 tbody tr:last-child td:first-child {
     text-align: left;

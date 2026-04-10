@@ -3,8 +3,9 @@ import re, unicodedata, json
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env
-load_dotenv()
+# Load environment variables from .env.local (for local dev) or .env (for production)
+load_dotenv('.env.local')  # Load local settings first
+load_dotenv()  # Then load main .env (doesn't overwrite if already set)
 
 # -------- APP VERSION & METADATA --------
 APP_VERSION = "0.1"
@@ -21,6 +22,15 @@ from src.intents import INTENTS
 from src.state_result import StateResult
 from src.utils.helpers import detect_intent, normaliser, extraire_depense, reply_json
 from src.routes import chat_bp, api_bp, pages_bp
+from src.session_manager import (
+    session_set_personne, session_set_revenu, session_add_depense, session_add_travail_domestique,
+    session_get_personnes, session_get_revenus, session_get_depenses, session_get_depenses_with_payeur,
+    session_get_travail_domestique, save_session_data_to_db
+)
+from src.calculations import calculer_part, calculer_equite, get_interpretation_equite
+from src.state_machine import (
+    build_steps, get_progress, get_current_question, STATE_HANDLERS, step_donnees_insee
+)
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -86,8 +96,11 @@ def session_add_travail_domestique(activite, role, heures):
 def save_session_data_to_db():
     """Save all buffered session data to database at once"""
     try:
+        print(f"DEBUG: Saving session data to DB. Session keys: {list(session.keys())}")
+        
         # Save personnes
         if 'personnes' in session:
+            print(f"  Saving {len(session['personnes'])} personnes")
             for role, data in session['personnes'].items():
                 if 'prenom' in data:
                     set_personne(role, prenom=data['prenom'])
@@ -96,17 +109,21 @@ def save_session_data_to_db():
         
         # Save revenus
         if 'revenus' in session:
+            print(f"  Saving {len(session['revenus'])} revenus")
             for role, montant in session['revenus'].items():
                 set_revenu(role, montant)
         
         # Save depenses
         if 'depenses' in session:
+            print(f"  Saving {len(session['depenses'])} depenses")
             for depense in session['depenses']:
                 add_depense(depense['description'], depense['montant'], depense['payeur'])
         
         # Save travail_domestique (full records from session)
         if 'travail_domestique_full' in session:
+            print(f"  Saving {len(session['travail_domestique_full'])} travail_domestique records")
             for record in session['travail_domestique_full']:
+                print(f"    - {record['sexe']} {record['activite']}: {record['heures_semaine']}h")
                 insert_travail_domestique_user(
                     prenom=record['prenom'],
                     age=record['age'],
@@ -115,54 +132,95 @@ def save_session_data_to_db():
                     activite=record['activite'],
                     heures_semaine=record['heures_semaine']
                 )
+        else:
+            print("  ✗ No travail_domestique_full in session!")
         
+        print("✓ Session saved to DB successfully")
         return True
     except Exception as e:
-        print(f"ERROR saving session data to DB: {e}")
+        print(f"✗ ERROR saving session data to DB: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def session_get_personnes():
-    """Get person data from session ONLY (no database fallback)"""
-    if 'personnes' in session:
+    """Get person data from session, fallback to database if empty"""
+    if 'personnes' in session and session['personnes']:
         return session['personnes']
-    return {}
+    try:
+        return get_personnes()
+    except:
+        return {}
 
 def session_get_revenus():
-    """Get revenue data from session ONLY (no database fallback)"""
-    if 'revenus' in session:
+    """Get revenue data from session, fallback to database if empty"""
+    if 'revenus' in session and session['revenus']:
         return session['revenus']
-    return {}
+    try:
+        return get_revenus()
+    except:
+        return {}
 
 def session_get_depenses():
-    """Get simple depenses dict from session only"""
-    if 'depenses' in session:
+    """Get simple depenses dict from session or database"""
+    if 'depenses' in session and session['depenses']:
         # Convert list format to dict format for backwards compatibility
         result = {}
         for i, depense in enumerate(session['depenses']):
             result[f"depense_{i}"] = depense['montant']
         return result
-    return {}
+    try:
+        return get_depenses()
+    except:
+        return {}
 
 def session_get_depenses_with_payeur():
-    """Get depenses with payeur info from session ONLY (no database fallback)"""
-    if 'depenses' in session:
+    """Get depenses with payeur info from session or database"""
+    if 'depenses' in session and session['depenses']:
         # Convert session format to depenses_with_payeur format
         return [(d['description'], d['montant'], d['payeur']) for d in session['depenses']]
-    return []
+    try:
+        return get_depenses_with_payeur()
+    except:
+        return []
 
 def session_get_travail_domestique():
-    """Get domestic work data from session ONLY (no database fallback)"""
-    if 'travail_domestique_full' in session:
-        # Convert list format back to dict format
+    """Get domestic work data from session, fallback to database if empty"""
+    if 'travail_domestique_full' in session and session['travail_domestique_full']:
+        # Convert list format to dict format with costs calculated
         result = {}
+        TARIF_HORAIRE = 15.0  # €/hour (match insert_travail_domestique_user)
+        
         for record in session['travail_domestique_full']:
             activite = record['activite']
             sexe = record['sexe']
+            heures_semaine = record['heures_semaine']
+            
             if activite not in result:
-                result[activite] = {}
-            result[activite][sexe] = record['heures_semaine']
+                result[activite] = {
+                    "homme": 0,
+                    "femme": 0,
+                    "cout_homme": 0,
+                    "cout_femme": 0
+                }
+            
+            # Calculate cost: convert weekly hours to daily for cost calculation
+            minutes_jour = round((heures_semaine * 60) / 7)
+            cout_jour = round((minutes_jour / 60) * TARIF_HORAIRE, 2)
+            
+            result[activite][sexe] = heures_semaine
+            if sexe == "homme":
+                result[activite]["cout_homme"] += cout_jour
+            else:
+                result[activite]["cout_femme"] += cout_jour
+        
         return result
-    return {}
+    
+    # Fallback to database if session is empty
+    try:
+        return get_travail_domestique()
+    except:
+        return {}
 
 # -------- CALCULATOR FUNCTIONS --------
 def calculer_part():
@@ -428,11 +486,7 @@ def step_revenu_homme(msg):
     )
 
 END_DEPENSES = {"fin", "termine", "terminé", "ok", "next"}
-_depense_temp = {}  # Stockage temporaire de la dernière dépense
-
 def step_depenses(msg):
-    global _depense_temp
-    
     # Si l'utilisateur a terminé
     if normaliser(msg) in END_DEPENSES:
         steps = build_steps()
@@ -443,11 +497,11 @@ def step_depenses(msg):
             steps[0]
         )
     
-    # Vérifier si on attend une réponse sur qui paye
-    if _depense_temp.get("awaiting_payeur"):
+    # Vérifier si on attend une réponse sur qui paye (stocké en session)
+    depense_temp = session.get('depense_temp', {})
+    if depense_temp.get("awaiting_payeur"):
         payeur = normaliser(msg)
         
-        # Handle common variations
         payeur_mapping = {
             "femme": "femme",
             "f": "femme",
@@ -466,11 +520,12 @@ def step_depenses(msg):
         payeur_final = payeur_mapping.get(payeur)
         
         if payeur_final:
-            montant = _depense_temp["montant"]
-            desc = _depense_temp["desc"]
+            montant = depense_temp["montant"]
+            desc = depense_temp["desc"]
             
             session_add_depense(desc, montant, payeur_final)
-            _depense_temp = {}
+            session.pop('depense_temp', None)
+            session.modified = True
             
             return StateResult(
                 MESSAGES["depense_ok"].format(montant=montant, categorie=desc)
@@ -490,8 +545,9 @@ def step_depenses(msg):
     if montant <= 0:
         return StateResult(MESSAGES["depense_err"])
     
-    # Stocker temporairement et demander qui paie
-    _depense_temp = {"montant": montant, "desc": desc, "awaiting_payeur": True}
+    # Stocker temporairement en session et demander qui paie
+    session['depense_temp'] = {"montant": montant, "desc": desc, "awaiting_payeur": True}
+    session.modified = True
     
     return StateResult(
         f"📝 Dépense: <b>{desc}</b> ({montant}€)<br>"
@@ -571,6 +627,7 @@ def step_donnees_insee(message, step):
         )
 
     # All steps completed
+    save_session_data_to_db()
     return StateResult(
         reply=f"{confirmation}<br><br>🎉 <strong>Félicitations !</strong> Toutes vos données ont été saisies avec succès.<br><br>📊 Vous pouvez maintenant :<br>• Consulter votre <strong>bilan détaillé</strong><br>• Taper <strong>'reset'</strong> pour recommencer avec de nouvelles données",
         next_step="completed"
@@ -608,10 +665,6 @@ STATE_HANDLERS = {
 }
 
 # -------- ROUTES --------
-@app.route("/")
-def index():
-    return redirect(url_for("dashboard_page"))
-
 @app.route("/chat", methods=["POST"])
 def chat():
     try:
@@ -639,6 +692,17 @@ def chat():
             set_step("prenom_femme")
             return reply_json(MESSAGES["welcome_base"] + "<br>" + get_current_question("prenom_femme"))
 
+        # Empty message = page load: resume at current step without processing input
+        if not message:
+            if step == "completed":
+                return reply_json("✅ Vos données ont été sauvegardées. Tapez <b>reset</b> pour recommencer.")
+            question = get_current_question(step)
+            if step == "prenom_femme":
+                return reply_json(MESSAGES["welcome_base"] + "<br>" + question)
+            progress, total = get_progress(step)
+            progress_text = f"<small>({progress}/{total})</small> " if progress else ""
+            return reply_json(f"⏸️ Reprise du questionnaire — {progress_text}{question}")
+
         # Handle completed state
         if step == "completed":
             result = step_completed(message)
@@ -663,87 +727,6 @@ def chat():
         import traceback
         traceback.print_exc()
         return reply_json(f"Erreur serveur: {str(e)[:100]}")
-
-@app.route("/chatbot")
-def chatbot_page():
-    return render_template("chat.html")
-
-@app.route("/dashboard")
-def dashboard_page():
-    return render_template("dashboard.html")
-
-@app.route("/api/bilan")
-def api_bilan():
-    revenus = get_revenus() or {}
-    depenses = get_depenses() or {}
-    depenses_details = get_depenses_with_payeur()
-    personnes = get_personnes() or {}
-
-    # Total des dépenses mensuelles (recalculé depuis depenses_details)
-    total_depenses = sum([mont for _, mont, _ in depenses_details]) if depenses_details else 0
-
-    # Calcul des contributions de chaque personne aux dépenses
-    contribution_homme, contribution_femme, _ = calculer_part()
-
-    # Calcul de l'équité
-    equite = calculer_equite()
-
-    # Heure de travail domestique : calcul mensuel
-    travail_user = get_travail_domestique() or {}
-    
-    # Calculer les heures mensuelles pour l'homme et la femme
-    heures_mensuelles_homme = 0
-    heures_mensuelles_femme = 0
-    couts_mensuels_homme = 0
-    couts_mensuels_femme = 0
-
-    # Calculer les heures et coûts mensuels
-    for activite, data in travail_user.items():
-        heures_mensuelles_homme += data["homme"] * 30.44
-        heures_mensuelles_femme += data["femme"] * 30.44
-
-        couts_mensuels_homme += data["cout_homme"] * 30.44
-        couts_mensuels_femme += data["cout_femme"] * 30.44
-
-    # Formater la réponse finale
-    reply = MESSAGES["bilan"].format(
-        total=total_depenses,
-        homme=contribution_homme,
-        femme=contribution_femme,
-        url=url_for("dashboard_page")
-    )
-
-    # Retourner les heures et coûts mensuels
-    return jsonify({
-        "revenus": revenus,
-        "depenses": depenses,
-        "depenses_details": get_depenses_with_payeur(),
-        "total_depenses": total_depenses,
-        "contribution": {"homme": contribution_homme, "femme": contribution_femme},
-        "personnes": personnes,
-        "travail_domestique": travail_user,  # Données entrées par l'utilisateur
-        "heures_mensuelles": {
-            "homme": heures_mensuelles_homme,
-            "femme": heures_mensuelles_femme
-        },
-        "couts_mensuels": {
-            "homme": couts_mensuels_homme,
-            "femme": couts_mensuels_femme
-        },
-        "equite": equite,
-        "reply": reply
-    })
-
-@app.route("/api/save-to-db", methods=["POST"])
-def save_to_db():
-    """Save all session data to remote database in one batch"""
-    success = save_session_to_db(session)
-    if success:
-        session.clear()  # Clear session after successful save
-        return jsonify({"status": "success", "message": "Données sauvegardées avec succès!"})
-    else:
-        return jsonify({"status": "error", "message": "Erreur lors de la sauvegarde"}), 500
-
 
 
 # -------- MAIN --------

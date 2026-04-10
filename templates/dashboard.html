@@ -67,6 +67,8 @@ async function refreshInfos() {
     try {
         const res = await fetch("/api/bilan");
         const data = await res.json();
+        
+        console.log("DEBUG refreshInfos - API Response:", data);
 
         const revenus = data.revenus || {};
         const depenses = data.depenses || {};
@@ -74,9 +76,13 @@ async function refreshInfos() {
         const contribution = data.contribution || {};
         const travail = data.travail_domestique || [];
         const equite = data.equite || {};
+        
+        console.log("DEBUG - extracted contribution:", contribution);
+        console.log("DEBUG - extracted equite:", equite);
 
         /* ======================= ANALYSE D'ÉQUITÉ ======================= */
         let equiteHtml = '';
+        console.log("DEBUG - equite.non_calculé =", equite.non_calculé, "equite.score_equite =", equite.score_equite);
         
         if (equite.non_calculé) {
             // Pas assez de données
@@ -95,6 +101,21 @@ async function refreshInfos() {
             const scoreColor = equite.score_equite ? (equite.score_equite >= 85 ? '#4CAF50' : 
                               equite.score_equite >= 70 ? '#FFB366' : '#FF6B6B') : '#999';
             
+            // Afficher les scores d'avantage/désavantage si disponible
+            let avantageHtml = '';
+            if (equite.avantage_scores) {
+                avantageHtml = `
+                    <div style="margin-top: 15px; padding: 12px; background: rgba(0,0,0,0.1); border-radius: 6px; font-size: 13px;">
+                        <strong>Détail des avantages/désavantages:</strong><br>`;
+                for (const [role, score] of Object.entries(equite.avantage_scores)) {
+                    const prenom = personnes[role] ? personnes[role].prenom : role;
+                    const indicator = score > 0 ? '➕' : '➖';
+                    const advantage_text = score > 0 ? 'avantagé(e)' : 'désavantagé(e)';
+                    avantageHtml += `<br>${indicator} ${prenom}: ${score.toFixed(2)} (${advantage_text})`;
+                }
+                avantageHtml += `</div>`;
+            }
+            
             equiteHtml = `
                 <div class="equity-score" style="background: linear-gradient(135deg, ${scoreColor}dd 0%, ${scoreColor} 100%); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
                     <h2 style="margin: 0; font-size: 28px;">📊 Score d'Équité</h2>
@@ -106,6 +127,7 @@ async function refreshInfos() {
                         <p style="font-size: 14px; margin: 12px 0 0 0; font-style: italic; opacity: 0.95;">
                         Un score de 100 signifie que les contributions sont équilibrées. >= 85 est considéré comme bon, 70-85 comme moyen, et <70 comme déséquilibré.
                     </p>
+                    ${avantageHtml}
                 </div>
             `;
         }
@@ -116,7 +138,7 @@ async function refreshInfos() {
         if (!equite.non_calculé && equite.ratio_revenu) {
             infosHtml += `
             <h3>📈 Analyse homme-femme</h3>
-            <table>
+            <table class="analysis-table">
                 <tr><th></th><th>Homme</th><th>Femme</th></tr>
                 <tr>
                     <td><strong>% du revenu total</strong></td>
@@ -132,11 +154,6 @@ async function refreshInfos() {
                     <td><strong>% du travail domestique</strong></td>
                     <td>${(equite.ratio_travail?.homme * 100).toFixed(2)}%</td>
                     <td>${(equite.ratio_travail?.femme * 100).toFixed(2)}%</td>
-                </tr>
-                <tr>
-                    <td><strong>Total heures/semaine de travail domestique</strong></td>
-                    <td>${equite.heures?.homme.toFixed(2)}h</td>
-                    <td>${equite.heures?.femme.toFixed(2)}h</td>
                 </tr>
             </table>`;
         }
@@ -192,18 +209,26 @@ async function refreshInfos() {
                 <tr><th>Rôle</th><th>Prénom</th><th>€</th></tr>`;
 
         /* ======================= CONTRIBUTIONS ======================= */
+        console.log("DEBUG - Building contributions section. contribution =", contribution);
         ["homme","femme"].forEach(role => {
-            if (personnes[role] && contribution[role] !== undefined) {
+            const hasContribution = contribution && contribution[role] !== undefined;
+            const prenom = personnes[role] ? personnes[role].prenom : '-';
+            const montant = hasContribution ? contribution[role].toFixed(2) : '0.00';
+            console.log(`DEBUG - Role ${role}: hasContribution=${hasContribution}, prenom=${prenom}, montant=${montant}`);
+            
+            if (personnes[role] || hasContribution) {
                 infosHtml += `
                     <tr>
                         <td>${role}</td>
-                        <td>${personnes[role].prenom}</td>
-                        <td>${contribution[role].toFixed(2)}</td>
+                        <td>${prenom}</td>
+                        <td>${montant}</td>
                     </tr>`;
             }
         });
 
-        const totalContrib = Object.values(contribution).reduce((a,b)=>a+b,0);
+        const totalContrib = contribution && Object.values(contribution).length > 0 ? 
+            Object.values(contribution).reduce((a,b)=>a+b,0) : 0;
+        console.log("DEBUG - totalContrib =", totalContrib);
         infosHtml += `
                 <tr><td colspan="2"><b>Total</b></td><td><b>${totalContrib.toFixed(2)}</b></td></tr>
             </table>
@@ -217,13 +242,13 @@ async function refreshInfos() {
         let totalHF = 0, totalHH = 0;
         let totalCF = 0, totalCH = 0;
 
-        const joursParMois = 30.44;
+        const semainesParMois = 4.33;
 
         if (Object.keys(travail).length > 0) {
             Object.entries(travail).forEach(([activite, data]) => {
 
-                const heuresMoisF = (data.femme || 0) * joursParMois;
-                const heuresMoisH = (data.homme || 0) * joursParMois;
+                const heuresMoisF = (data.femme || 0) * semainesParMois;
+                const heuresMoisH = (data.homme || 0) * semainesParMois;
 
                 // Récupérer les coûts calculés par le backend
                 const coutMoisF = data.cout_femme || 0;
@@ -349,9 +374,6 @@ async function refreshInfos() {
 }
 
 refreshInfos();
-// Poll every 500ms for instant updates from session (no database overhead)
-// Dashboard now reads ONLY from active chat session, not from database
-setInterval(refreshInfos, 500);
 
 // Expose refreshInfos globally so iframe can trigger updates
 window.refreshDashboard = refreshInfos;

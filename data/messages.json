@@ -2,7 +2,7 @@
   "reset": "♻️ <strong>Base réinitialisée</strong>.<br>👉 Recommence avec une nouvelle saisie.",
   "aide": "ℹ️ Vous pouvez dire :<br>- « J’ajoute une dépense de 50 € pour le resto »<br>- « Mon revenu homme est 2000 € »<br>- « Mets le revenu femme à 1800 € »<br>- « Reset » pour repartir de zéro",
   
-  "depense_ok": "💚 Dépense ajoutée : <strong>{montant} €</strong> pour '<em>{categorie}</em>'.<br>👉 Ajoute une autre dépense.",
+  "depense_ok": "💚 Dépense ajoutée : <strong>{montant} €</strong> pour '<em>{categorie}</em>'.<br>👉 Ajoute une autre dépense ou tapez <strong>'fin'</strong> pour terminer.",
   "depense_err": "🔴 Montant invalide.<br>Exemple correct : <em>'dépense loyer 800'</em>.",
   
   "revenu_homme_ok": "💰 Revenu homme : <strong>{montant} €</strong>.",
@@ -20,7 +20,7 @@
   "prenom_homme_q": "Quel est le prénom de l’homme ?",
   "age_homme_q": "Quel est l'âge de {prenom} ?",
   "revenu_homme_q": "Quel est le revenu de {prenom} ?",
-  "depenses_q": "Indiquez une dépense (ex : 50€ courses).",
+  "depenses_q": "Indiquez une dépense (ex : 50€ courses) ou tapez <strong>'fin'</strong> pour terminer.",
   
   "bilan": "📊 <strong>Total :</strong> {total:.2f} €<br>💙 Homme : {homme:.2f} €<br>🧡 Femme : {femme:.2f} €<br><a href='{url}' class='btn btn-info btn-sm mt-2'>👉 Voir le détail</a>",
   

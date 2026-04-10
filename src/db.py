@@ -150,6 +150,8 @@ def init_db():
         conn.close()
 
 def reset_db():
+    """Reset user data only (revenus, depenses, personnes, travail_domestique).
+    Keep donnees_insee as reference data that should never be deleted."""
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -157,7 +159,7 @@ def reset_db():
         c.execute("DELETE FROM depenses")
         c.execute("DELETE FROM step")
         c.execute("DELETE FROM personnes")
-        c.execute("DELETE FROM donnees_insee")
+        # NOTE: DO NOT delete donnees_insee - it's reference data that should persist
         c.execute("DELETE FROM travail_domestique")
         c.execute("INSERT INTO personnes (role, prenom, age) VALUES (%s, %s, %s)", ('femme', None, None))
         c.execute("INSERT INTO personnes (role, prenom, age) VALUES (%s, %s, %s)", ('homme', None, None))
@@ -347,7 +349,10 @@ def get_travail_domestique():
         travail_domestique = {}
 
         for sexe, activite, minutes_jour, cout_jour in rows:
-            heures_jour = minutes_jour / 60
+            # Convert daily minutes back to weekly hours
+            # Original conversion: heures_semaine -> (heures_semaine * 60) / 7 = minutes_jour
+            # Reverse: minutes_jour -> (minutes_jour / 60) * 7 = heures_semaine
+            heures_semaine = (minutes_jour / 60) * 7
 
             if activite not in travail_domestique:
                 travail_domestique[activite] = {
@@ -358,10 +363,10 @@ def get_travail_domestique():
                 }
 
             if sexe == "homme":
-                travail_domestique[activite]["homme"] += heures_jour
+                travail_domestique[activite]["homme"] += heures_semaine
                 travail_domestique[activite]["cout_homme"] += cout_jour
             else:
-                travail_domestique[activite]["femme"] += heures_jour
+                travail_domestique[activite]["femme"] += heures_semaine
                 travail_domestique[activite]["cout_femme"] += cout_jour
 
         return travail_domestique
